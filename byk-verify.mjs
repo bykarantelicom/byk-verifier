@@ -55480,6 +55480,13 @@ function baseClients(n, privateKeyHex) {
 var RANGE_REFUSAL = /limited to (?:an?\s+)?([\d,_]+)\s*(?:blocks?)?\s*range|block range (?:is )?too (?:large|wide)|range exceeds|exceeds? the maximum|up to ([\d,_]+) blocks|(?:returned |than )([\d,_]+) results/i;
 var MIN_LOG_CHUNK = BigInt(199);
 var DEFAULT_LOG_CHUNK = BigInt(1999);
+var MAX_LOG_CHUNK = BigInt(9999);
+var GROW_AFTER_SUCCESSES = 2;
+function nextChunkAfterSuccess(span, successes, ceiling) {
+  if (successes < GROW_AFTER_SUCCESSES || span >= ceiling) return span;
+  const grown = span * BigInt(2) + BigInt(1);
+  return grown > ceiling ? ceiling : grown;
+}
 var RATE_LIMIT = /rate limit|too many requests|429|throttl/i;
 var PAUSE_BETWEEN_CHUNKS_MS = 150;
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -55499,6 +55506,8 @@ async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
   const byWitnessKey = /* @__PURE__ */ new Map();
   let inadmissible = 0;
   let span = opts.chunk ?? DEFAULT_LOG_CHUNK;
+  let ceiling = MAX_LOG_CHUNK;
+  let successes = 0;
   let calls = 0;
   let complete = true;
   let rateLimitWaits = 0;
@@ -55516,7 +55525,9 @@ async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
       const message = err instanceof Error ? err.message : String(err);
       const next = chunkFromRangeRefusal(message, span);
       if (next !== null && next < span) {
+        ceiling = next;
         span = next;
+        successes = 0;
         continue;
       }
       if (RATE_LIMIT.test(message) && rateLimitWaits < 8) {
@@ -55540,6 +55551,8 @@ async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
       list.push({ uid: a.uid, txHash: l.transactionHash ?? "", blockNumber: l.blockNumber ?? BigInt(0), timeSec: Number(a.time), attester: a.attester, payload });
       byWitnessKey.set(toHex(key), list);
     }
+    successes++;
+    span = nextChunkAfterSuccess(span, successes, ceiling);
     from15 = to + BigInt(1);
     if (from15 <= latest) await sleep(PAUSE_BETWEEN_CHUNKS_MS);
   }
