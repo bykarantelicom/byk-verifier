@@ -23,8 +23,14 @@ verifier reads the two chains and the public Proof API at https://bykaranteli.co
 ## Run the verifier
 
 ```
-node byk-verify.mjs --stream <stream id> [--solana-rpc <url>] [--base-rpc <url>] [--to <sequence>] [--json]
+node byk-verify.mjs --stream <stream id> [--network mainnet|devnet] [--solana-rpc <url>] [--base-rpc <url>] [--to <sequence>] [--json]
 ```
+
+`--network` defaults to mainnet. The Solana endpoint must keep full history: the default
+(`https://api.mainnet-beta.solana.com`) serves from block 0, while a fast pruned endpoint such as
+PublicNode keeps about two days and the verifier then reports that an older anchor's absence proves
+nothing (INCOMPLETE), never CANONICAL. A full run walks every epoch since genesis and takes minutes;
+`--to <sequence>` bounds it.
 
 It reads the stream's genesis, authorization log and epoch manifests from the chains, recomputes the
 Merkle roots from the records the Proof API returns, and reports PASS, WARNING (a witness could not be

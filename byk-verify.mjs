@@ -55646,7 +55646,7 @@ async function main() {
   const streamHex = (arg("stream") ?? "").toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(streamHex)) throw new Error("--stream <64 hex characters> is required: it is the one value a verifier must get out of band");
   const streamId = fromHex(streamHex);
-  const network = arg("network") ?? "devnet";
+  const network = arg("network") ?? "mainnet";
   const mainnet = network === "mainnet";
   const solRpc = arg("solana-rpc") ?? (mainnet ? process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com" : SOLANA_DEVNET_RPC);
   const baseNet = { chainId: mainnet ? BASE_MAINNET_CHAIN_ID : BASE_SEPOLIA_CHAIN_ID, rpcUrl: arg("base-rpc") ?? (mainnet ? BASE_MAINNET_RPC : BASE_SEPOLIA_RPC), easAddress: fromHex(BASE_EAS_ADDRESS_HEX) };
