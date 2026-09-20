@@ -1,0 +1,20 @@
+{
+  "name": "byk-verifier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Independent verifier for the BYK Data Layer: spec, TypeScript library, Python reference, test vectors.",
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test ts/conformance.test.ts ts/decimal.test.ts",
+    "verify": "node byk-verify.mjs"
+  },
+  "dependencies": {
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "license": "MIT"
+}

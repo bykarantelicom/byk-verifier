@@ -1,0 +1,2546 @@
+{
+  "version": "1.0.0-rc6",
+  "network_constants": {
+    "base_mainnet_chain_id": 8453,
+    "base_sepolia_chain_id": 84532,
+    "solana_mainnet_beta_genesis_hash_b58": "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
+    "solana_mainnet_beta_genesis_hash_hex": "45296998a6f8e2a784db5d9f95e18fc23f70441a1039446801089879b08c7ef0",
+    "solana_devnet_genesis_hash_b58": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    "solana_devnet_genesis_hash_hex": "ce59db5080fc2c6d3bcf7ca90712d3c2e5e6c28f27f0dfbb9953bdb0894c03ab",
+    "base_eas_address": "0x4200000000000000000000000000000000000021"
+  },
+  "encoding": {
+    "keccak256('')": "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+    "keccak256('abc')": "4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45",
+    "id32('BYK.BTC.FUNDING.COMPOSITE')": "c9b4693aac0ef55b0bff2f29ca4338df7e87f688bda4f7c6a1d66891a6722980",
+    "id32('BTC')": "e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9",
+    "int64(-48750)": "ffffffffffff4192",
+    "int64(6872)": "0000000000001ad8",
+    "trunc_div(-7,2)": -3,
+    "trunc_div(7,-2)": -3,
+    "trunc_div(-7,-2)": 3,
+    "id32 rejects": [
+      "'' (empty)",
+      "'BTC ' (space)",
+      "'B TC'",
+      "'BT\\nC'",
+      "non-ASCII",
+      "0x7F"
+    ]
+  },
+  "genesis_core": {
+    "threshold": 2,
+    "governance_sorted": [
+      "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+      "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+      "0x90f79bf6eb2c4f870365e785982e1f101e93b906"
+    ],
+    "genesis_epoch_start_ms": 1789257600000,
+    "genesis_epoch_start_utc": "2026-09-13T00:00:00Z",
+    "stream_name": "BYK.DATALAYER.TESTVECTORS",
+    "base_chain_id": 84532,
+    "solana_cluster": "devnet",
+    "genesis_core_hex": "42594b4701020300000001a098104c00172de24442f4e5501209928454097ac46c52782b6bd71061242d649ba3296ee00000000000014a34ce59db5080fc2c6d3bcf7ca90712d3c2e5e6c28f27f0dfbb9953bdb0894c03ab4200000000000000000000000000000000000021000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc70997970c51812dc3a010c7d01b50e0d17dc79c890f79bf6eb2c4f870365e785982e1f101e93b906",
+    "genesis_core_length": 172,
+    "stream_id": "aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892"
+  },
+  "witness_keys": {
+    "data_sequence_0": {
+      "key_hex": "320191eab08b34d6194edcd4bd320c323c95ef3fc2ccf7e77c8c092229f93563",
+      "solana_address_b58": "4NCmrhDhkN3aCgMbp54jDKx7EtmRxpLMjncbETPZGemY",
+      "base_recipient": "0xbd320c323c95ef3fc2ccf7e77c8c092229f93563"
+    },
+    "data_sequence_1": {
+      "key_hex": "5f404b0dd907562d2d94a14b34c06fac9c45e8ba2e527631e83b0b49bf5e4890",
+      "solana_address_b58": "7QpbNBBuiB44DXSehmgo6mg7A4ypzbLvdiTuNjLNvdgs",
+      "base_recipient": "0x34c06fac9c45e8ba2e527631e83b0b49bf5e4890"
+    },
+    "al_log_seq_1": {
+      "key_hex": "4790a8f374dc767c4c95eb25ebbf2d8a58083b2e094a334b30defb237e50b355",
+      "solana_address_b58": "5pMtJcnyYcCb5wRY9M7nwDV6D57XTL4r7fiTQSYRPC8c",
+      "base_recipient": "0xebbf2d8a58083b2e094a334b30defb237e50b355"
+    },
+    "genesis": {
+      "key_hex": "d143e2a7ac631f6e2952581f782d136a595898380f296ce783f171560578244b",
+      "solana_address_b58": "F5tFKuLmZtRSXZqUd3MWr7fQ1s3TJECmnD2v29hCFJCA",
+      "base_recipient": "0x782d136a595898380f296ce783f171560578244b"
+    }
+  },
+  "genesis_manifest": {
+    "manifest_hex": "42594b44010300000000000000000000000001a098104c00000001a09814dfe00000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4700000000000000000000000000000000000000000000000000000000000000000f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+    "commitment": "3c9567c0e237e9e0fc074edaf831e43ca9187f2bae81644ef82afb7c22cdea40",
+    "signature_S1": "f8b3076ca03c1961686477085affec72e0a9db06215408f250ed4cf01b08e9e34ab059387ccd531dcb935eb5d8a3a1d3a1fa83c665fdcbd83bac37be6c1faec201"
+  },
+  "epoch1": {
+    "leaves": [
+      {
+        "leaf_index": 0,
+        "label": "SOL funding composite (Class A, negative value, from snapshot)",
+        "feed": "BYK.SOL.FUNDING.COMPOSITE",
+        "asset": "SOL",
+        "leaf_hex": "01010a00258bbe571b178d42b2d9944e617e7adacee828dcca100cfe4edc6b4818df825b0a3ec4fc70eaf64faf6eeda4e9b2bd4742a785464053aa23afad8bd24650e86f000001a0981973c0fffffffffffe2fae0005000724450001001712400000000000002b7e",
+        "leaf_hash": "d72190127ddd446cef7ec34115d9155513e8ee64174856be18b80965e43e338d",
+        "audit_path": [
+          "7407b9d63c5fdbd6283304e633a74800158ec4de6b1d84a0544c8289cf8820df",
+          "d33cf8b0cee69e27c0a99166219626a26098577010d2ed4de51459f45bb62005"
+        ]
+      },
+      {
+        "leaf_index": 1,
+        "label": "BTC VPIN (Class B)",
+        "feed": "BYK.BTC.VPIN",
+        "asset": "BTC",
+        "leaf_hex": "01000400616bba5f4356cb49392096b70dc18b123c2dfe7c27cb26520be9bcea1fe5e0a8e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a0981973c00000000000001ad8000b000b271000000000032c0000000000000000",
+        "leaf_hash": "7407b9d63c5fdbd6283304e633a74800158ec4de6b1d84a0544c8289cf8820df",
+        "audit_path": [
+          "d72190127ddd446cef7ec34115d9155513e8ee64174856be18b80965e43e338d",
+          "d33cf8b0cee69e27c0a99166219626a26098577010d2ed4de51459f45bb62005"
+        ]
+      },
+      {
+        "leaf_index": 2,
+        "label": "ETH funding composite (Class A, INSUFFICIENT_COVERAGE, from snapshot)",
+        "feed": "BYK.ETH.FUNDING.COMPOSITE",
+        "asset": "ETH",
+        "leaf_hex": "01020a008101bb83065325d0a1fa1ab7e8316a2c372da708f2ffdb3d99d362f15616170eaaaebeba3810b1e6b70781f14b2d72c1cb89c0b2b320c43bb67ff79f562f5ff4000001a0981973c000000000000000000003000723aa0001001712400000000000000000",
+        "leaf_hash": "cc737f6251b398a947d7754974d6f350cdddecbd6054ea72e75d0f1c42139db5",
+        "audit_path": [
+          "d2a80288ae6d469c3e85bf38d0482138cc938ec542620dd8c63e8c187ba6756d",
+          "b256b20bec1cae3df82801c8d1bad11f57c2aef0802cc7797bb8391343459d20"
+        ]
+      },
+      {
+        "leaf_index": 3,
+        "label": "BTC funding composite (Class A, from snapshot)",
+        "feed": "BYK.BTC.FUNDING.COMPOSITE",
+        "asset": "BTC",
+        "leaf_hex": "01010a00c9b4693aac0ef55b0bff2f29ca4338df7e87f688bda4f7c6a1d66891a6722980e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a0981973c0000000000001d0520005000724450001001712400000000000002b7e",
+        "leaf_hash": "d2a80288ae6d469c3e85bf38d0482138cc938ec542620dd8c63e8c187ba6756d",
+        "audit_path": [
+          "cc737f6251b398a947d7754974d6f350cdddecbd6054ea72e75d0f1c42139db5",
+          "b256b20bec1cae3df82801c8d1bad11f57c2aef0802cc7797bb8391343459d20"
+        ]
+      }
+    ],
+    "internal_node_0_1": "b256b20bec1cae3df82801c8d1bad11f57c2aef0802cc7797bb8391343459d20",
+    "merkle_root": "63d98ab47de6834a5dbb0c9d60106354e1be2e30ed684191336ae0a58ee05559",
+    "manifest_hex": "42594b44010100000000000000000001000001a09814dfe0000001a0981973c00000000400000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa289263d98ab47de6834a5dbb0c9d60106354e1be2e30ed684191336ae0a58ee055593c9567c0e237e9e0fc074edaf831e43ca9187f2bae81644ef82afb7c22cdea40f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+    "commitment": "e2fce44df816d8ce513df26f9d8455556caaec2b91f9985dcd5da0ed0e720f9d",
+    "signature_S1": "cdf678e0013406bbc21ecaeaa9644d898b74037beafd85ebab0ecdd6fac0665b44485c4f095cbb497cf8d6611a0bb525550224a5ebfb3f869cae9ce414ee692c00",
+    "signature_r": "cdf678e0013406bbc21ecaeaa9644d898b74037beafd85ebab0ecdd6fac0665b",
+    "signature_s": "44485c4f095cbb497cf8d6611a0bb525550224a5ebfb3f869cae9ce414ee692c",
+    "recovery_id": 0,
+    "evm_v": 27,
+    "signer_S1": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "high_s_variant_must_be_rejected": "cdf678e0013406bbc21ecaeaa9644d898b74037beafd85ebab0ecdd6fac0665bbbb7a3b0f6a344b68307299ee5f44ad965acb840c34d60b52323c1a8bb47d81501"
+  },
+  "tree_size_finding": {
+    "description": "proof for leaf 0 of a 5-leaf tree verifies against the same root when tree_size 6 is claimed",
+    "verifies": true
+  },
+  "authorization_log": {
+    "E1_authorize_S1_hex": "42594b4c010100280000000000000001aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28920000000000000000000000000000000000000000000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000ffffffffffffffff",
+    "E1_hash": "6e633036bcfae38330538cd571f8a97de4e000a8fb23567ccf53cfc9601bb95b",
+    "E1_bundle_G1_G2": "48e11237fe34d3e7fefa444b6fa16ce08aed7f2c341bbe3c577302d2c0b912e822b45656d1d7dc19c0355aa73c9e414d303b65fc8b7eace8c9e3bef088306bc201a988935e11eff182b3f0fa01f99da4e72797fd00297b579a7dc06e8d1752dc115ccf8b590071345809224a44b4394e11b1dfa943eac580661b9a6457afedf3f900",
+    "E1_meaning": "log_seq 1: S1 authorized for sequences [0, unbounded)",
+    "E2b_checkpoint_seq2_C2a_hex": "42594b4c010300280000000000000002aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28926e633036bcfae38330538cd571f8a97de4e000a8fb23567ccf53cfc9601bb95b0000000000000002dc7f853d2effa20baf2a6056f72efa5cd573a41ed3db58710bd239c457a32c0e",
+    "E2b_bundle": "4bdf0f18f7e37bffd0837a1874ff9768bff6f6c442de097ac62fd658cb5b864c336083244866201dd2698f2839046256e56b4f507b51f7fe163c132dd060056d0100138db0d201180b2d7df11b1c4fee886d5768a12f57b7a1696f3dba1d86a616166cff1ad3350ad074d99bc2594f1d2bda47ca445ee7f7b73b80c3b9f51e6e6801",
+    "E2c_checkpoint_seq2_C2b_hex": "42594b4c010300280000000000000002aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28926e633036bcfae38330538cd571f8a97de4e000a8fb23567ccf53cfc9601bb95b000000000000000270be1cd2066db656c81390ae417d57adaeebb2a8569aed3b017d99b2c628c6b6",
+    "E2c_bundle": "c976e5fd942a77ec51a4d8585f3324b29b89ef426bf45bd22821a0643d6c713901be15f18ae49b0e53276d256970d0b0bb8d7f300c8e5c4f84cb5d4e3edfd6b9014570abf784966253b01c6ca63b34e47f132757bdd640884bf3f6283cd9329a0119f374dd8a4267be0d1774664b02000b5aa1252faa5c3aded96e36d0732d2c0b00",
+    "E2d_revoke_S1_from_seq2_hex": "42594b4c010100280000000000000002aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28926e633036bcfae38330538cd571f8a97de4e000a8fb23567ccf53cfc9601bb95bf39fd6e51aad88f6f4ce6ab8827279cfffb922660000000000000000000000000000000000000002",
+    "E2d_bundle": "e2dd9adabd9ff80b1cb6d443354298d6d69305df7f9e8d34df855dc24d88a9473049d53529dd062392a77133f5539cb97c19897dc9bc0b72d09ab3f9e83aa680011307201d5b1672dad64fe888d2370ab7928bf91e0cd37f671a0c4fe9029e883748656e45fda29376b981946938606886ae991514a99a241e0c097632f9f68b0900",
+    "E3d_authorize_S2_from_seq2_hex": "42594b4c010100280000000000000003aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892454a9a8bc93eafb0c362751426d2b52dc15325ef85d1d6c9b102137c3b3ecdc09965507d1a55bcc2695c58ba16fb37d819b0a4dc000000000000000000000002ffffffffffffffff",
+    "E3d_bundle": "e5114a32074d718dc703535815f765f89f1cdb077ab202f9f849bbdf5d76253c2292e30feae744c6822306abe441ebeaf93a258b401d1f6ff3bf184af4c41d5e001087572a665011ecd94d54c5fa48b932e82c3f8ad3d28948780b49cc427ae23626d71bc7ce0bae5820e595f69478f57d80e0b10f3aab64e2cb9b468089609b7b01",
+    "E2bad_checkpoint_seq2_C2bad_hex": "42594b4c010300280000000000000002aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28926e633036bcfae38330538cd571f8a97de4e000a8fb23567ccf53cfc9601bb95b0000000000000002a5b9cc1dc7475baf42f01743573c397f5e39664d79015702bbf6537ab3142dee",
+    "E2bad_bundle": "3854e0351a0e548ea7b03c07caa4c655c701c28723a3daf62609e639106ba7cf65f14fc937fb606cebef28382625087b0c7b09b27998c835ca21389b2d04d59b01088efde92658827876f15154fb9845f8c3149f3ad009cfd6093955b6b7704cc24b2675e26065cfad2c77b3dcf4aeeeb4768d2261a765656bc84103044a1361f201",
+    "E2restart_checkpoint_seq3_C3_hex": "42594b4c010300280000000000000002aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28926e633036bcfae38330538cd571f8a97de4e000a8fb23567ccf53cfc9601bb95b00000000000000039926ac504730d739234bee33fce684509355463ae9adc6cd9fc3eb0814000dc3",
+    "E2restart_bundle": "b193849c4a1ee7f3e71090f560ccd694090dd3cf6b0c35ce33b24268f2e645ef2afa3cb9605256addeaee36154639f7a580a7f9bae4fa5216540080232497f7101877a0e6533606f5c1976efca1c850b2d1807e9bdb41bd0767a8791695da4ff74458e9c6b6a06d06db438b5680d28e32687ad6bc45093ca3133d203c59b64f5fe00",
+    "E2e_governance_update_hex": "42594b4c010200400000000000000002aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28926e633036bcfae38330538cd571f8a97de4e000a8fb23567ccf53cfc9601bb95b0203000015d34aaf54267db7d7c367839aaf71a00a2c6a653c44cdddb6a900fa2b585dd299e03d12fa4293bc70997970c51812dc3a010c7d01b50e0d17dc79c8",
+    "E2e_bundle_old_set_G2_G3": "163851061c5f6cd5f4426cd23c817b92f421591ec586504dfc1e2f9b8e0a12f80e8cff75407623e6ba07a5086b9ec07800e82f25842b7fe4b16aa30c689ecb56014bd99caa899034aa81bf528e865437669d5b7db418b403da80a9e0027bfffc94778923fbacdb6109fafc1ac4012ef9da51285fd78c39dd6594ef333eba8e1bc701",
+    "E3e_authorize_S2_from_seq4_hex": "42594b4c010100280000000000000003aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892205246eac6de2825720ce47f09b4ddfe677c4a69ff506e83079faf0a785921229965507d1a55bcc2695c58ba16fb37d819b0a4dc000000000000000000000004ffffffffffffffff",
+    "E3e_bundle_new_set_G1_G4": "3ddb6ce041a845e1830c34847461e19f1db3626bae0be0f25fae0ed0756b520e01fd06a8f7c2d5e10ee8ccec78a1a12b6d5cd90d565ff3de78cb378251c2de2a0195c4e7566bb7b87006cc6f5bdcc7f6213e10cf755d347622f4e67e4a9fcd600d683d53aae0935afb683df1a805d0925f3764aebf0d24028cdde0101124c94dce00",
+    "E3e_bundle_removed_member_G1_G3_must_fail": "95c4e7566bb7b87006cc6f5bdcc7f6213e10cf755d347622f4e67e4a9fcd600d683d53aae0935afb683df1a805d0925f3764aebf0d24028cdde0101124c94dce004860387b187e979e79b1a67394c05f091cf58ff06759d67c1dc05080b9b47f010e5c350b2adbdd7aca0b34dbaf1038990889d6d2c5b27bfb1fe444ac0b6f1f7d00",
+    "ACK3_on_E2b_hex": "42594b4c010400000000000000000003aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892fccf4c5a55bde1dcf9a83db39de4b086818b65c09da14cec4d93adec58ef14cb",
+    "ACK3_on_E2b_bundle_G1_G2_G3": "9439c3984d0d680f7eefce9e5ccd697e0e6e00f9cc87c09c200b8fe7847e1b216e6176a918686084639c72c3cd2f8b5dc98ee3511399b14a0c813741506f5d1f01c0fac7926393413e46dc4d9906ec6238b35b29821a8a227fb85fbd2e5cbb4a38303cab22e9a16895e2f35121249273fa7f012874eb827cbd3474ad83df0a5ff701720231493242d3a0a422d5a33a2dd9e4abdda2c4e2b3d7faf2194985b1335281778c39bde6797d9670ba446c6fd2cc08ff8e4d7f61a96b6bc1b1ed8d80639f3a01",
+    "ACK3_on_E2b_bundle_G1_G2_only": "9439c3984d0d680f7eefce9e5ccd697e0e6e00f9cc87c09c200b8fe7847e1b216e6176a918686084639c72c3cd2f8b5dc98ee3511399b14a0c813741506f5d1f01c0fac7926393413e46dc4d9906ec6238b35b29821a8a227fb85fbd2e5cbb4a38303cab22e9a16895e2f35121249273fa7f012874eb827cbd3474ad83df0a5ff701",
+    "ACK3_on_E2c_hex": "42594b4c010400000000000000000003aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892131063ad3734b0e2bfa04a1935dbd354b694baf35d707605aa888408318c2826",
+    "ACK3_on_E2c_bundle_G1_G2_G3": "bb98491d863fc3d22fb55bec8d371a53af12eeb04c6df57f606af8373f9edb251738acc76d96ac46a030bf925812cd10692b422b97758c58b4d31e57a023fdbc01dbf2f0478e5f109ff4c49d6884355e1451640f218a0c2e3a6ad5eb1d26bde249220e2a74a2219b5fcc660704f5ff4a88164fc14e5eb5e8406499018db938d40a00c30f305c20c071e9f16022266844ed4bba1935a2c2b90824bd0dfb63656952a4229d539a08e1b14d3a3edf63d86f2768efdfa17209a8edaf614adf39b1a173ec01",
+    "CHECKPOINT3_on_E2b_non_ack_continuation_hex": "42594b4c010300280000000000000003aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892fccf4c5a55bde1dcf9a83db39de4b086818b65c09da14cec4d93adec58ef14cb0000000000000001e2fce44df816d8ce513df26f9d8455556caaec2b91f9985dcd5da0ed0e720f9d",
+    "CHECKPOINT3_on_E2b_bundle_G1_G2_G3": "37cf9903b957f5f0bab3907425a86a16e1a99a41fbc32a1b0c2d973c30efac815a366c4c4679b6c6c8d65f30df83173e8724bbf33265c3fc5b8ede1cc8a74f9f00deb9d4111cebd58c462d4201e94fc5513b9e15ee723a340cfa55c723f1028c6d51d8badf289e4e6df0b3cb987f1af76e8dc55a1b7c58cbc011363297f350f7020173c1e4b53702962a6e0807e47e1fbcddc4e0a8120bf58dacfed475f6cfc966537c31377cf060b51fa219a2478df4f478fff5d41f4be8e374ca9565fdca461e1a00",
+    "new_governance_sorted": [
+      "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+      "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+      "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+    ],
+    "S2": "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
+    "expected_heads_governance_update": {
+      "log[E1,E2e,E3e(new set G1,G4)]": 3,
+      "log[E1,E2e,E3e(G1,G3)]": 2
+    }
+  },
+  "resolution": {
+    "manifests": {
+      "M2a_hex": "42594b44010300000000000000000002000001a0981973c0000001a0981e07a00000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470e2fce44df816d8ce513df26f9d8455556caaec2b91f9985dcd5da0ed0e720f9df6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "C2a": "dc7f853d2effa20baf2a6056f72efa5cd573a41ed3db58710bd239c457a32c0e",
+      "M2b_hex": "42594b44010300000000000000000002000001a0981973c0000001a098229b800000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470e2fce44df816d8ce513df26f9d8455556caaec2b91f9985dcd5da0ed0e720f9df6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "C2b": "70be1cd2066db656c81390ae417d57adaeebb2a8569aed3b017d99b2c628c6b6",
+      "M2bad_hex": "42594b44010300000000000000000002000001a0981973c0000001a0981e07a00000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4703c9567c0e237e9e0fc074edaf831e43ca9187f2bae81644ef82afb7c22cdea40f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "C2bad": "a5b9cc1dc7475baf42f01743573c397f5e39664d79015702bbf6537ab3142dee",
+      "M3_hex": "42594b44010300000000000000000003000001a0981e07a0000001a098229b800000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470dc7f853d2effa20baf2a6056f72efa5cd573a41ed3db58710bd239c457a32c0ef6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "C3": "9926ac504730d739234bee33fce684509355463ae9adc6cd9fc3eb0814000dc3"
+    },
+    "signatures_S1": {
+      "M2a": "ba6f6d4136351e0501b8a58de908ee3f5d138c613c7b0a1242616045830b883748b425f3286dce5a1fd7341dd7e11e311d0ecc9d69fcdd9dfe34087509bf8c5c00",
+      "M2b": "7338b01206f4bd73a11353e3acbfb456df3532046122adc95f2d08d1b29508e915cab0b35fc1d67fb7a85bb2ad96a4f518fe3ed4878b34ccd5696e6b69b0e04a00",
+      "M2bad": "cffb3e0f19550b636c38db8a7f4635d15cdf7915c5cf7a0fde5e2f261c9adc4d7f0a578395b87bc7db4b640361a2ff407b0c607a14ac01479803a43b90a69c2800",
+      "M3": "6d985abbd3f96ceefaf0bbb6838cdceea414c7839115e6970669ab08ce3eb89416d149b3739a27fb5d6f09f151edea1e70f2b5724a82871a85054076fb996e2200",
+      "M4": "3f711fcd2f9707ac9538eecd320413fc318000cc3f454fc10cf5840c3d8f8959259c2a4b8b36f80ba7c64230524de905438616f60a0f687585d5a75856797c7700",
+      "M5": "e9a1a157062601c2ebc8440d8d0b43258f8bf5b1a4756286d2ea9c9c469544775cda57fc9a096ee73f9b865d3b2b0d1da89aafad478f9582cabb2110bf9a6c6300",
+      "M_far": "6c2c94801c5c143f468413f6e7ad72ec02bc0020baff54e28348cfd2205c36872c4839e9e3dee571d6e7e28b19cd6f06077cb3191b883db00e4d630c69ac75d900",
+      "M_max": "ed66a29e369deba37711f1ee6b1e15647a41dc56556def74c3da7168bc94b3b64ecaff47aee5b8b95b0e24234de814ba87a776447dd7db027204d849d441a45201"
+    },
+    "signatures_S2": {
+      "M2a": "032452ad9ce2011c3168af43ad90d75e293b36c392370bc07df0a8eeba537fa2460c1bd842df5600d4ed681230f2d58b097c5bbccac87daf9252115c9dd770cf01",
+      "M3": "15c3bc99fa7e2f18677f6a8312426f88010d7e19536d42820621dbb247852c4706738de78b6bfaed9da62bbfdac97a624df1cdf54289c0e0e59934453e367d9c01"
+    },
+    "more_manifests": {
+      "M4_hex": "42594b44010300000000000000000004000001a098229b80000001a098272f600000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4709926ac504730d739234bee33fce684509355463ae9adc6cd9fc3eb0814000dc3f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "C4": "5cfd99c0ed56b1997797fdf3a081cee58152cb88b745352c27d3e716b1cc1b00",
+      "M5_hex": "42594b44010300000000000000000005000001a098272f60000001a0982bc3400000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4705cfd99c0ed56b1997797fdf3a081cee58152cb88b745352c27d3e716b1cc1b00f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "C5": "a7c4b17aa1de12347c5d5a5c6b8fa04967e15ed7c0ec887666796214fcbc68c6",
+      "M1x_hex": "42594b44010300000000000000000001000001a09814dfe0000001a0981973c00000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4703c9567c0e237e9e0fc074edaf831e43ca9187f2bae81644ef82afb7c22cdea40f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "C1x": "fad879dba2556c7b40355632c6fda8c955acb1f27a68690c38cd8f97745cb8b7",
+      "M_far_hex": "42594b4401030000000000003b9aca0000011279c97f0c0000011279c9839fe00000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4703c9567c0e237e9e0fc074edaf831e43ca9187f2bae81644ef82afb7c22cdea40f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "M_max_hex": "42594b4401030000fffffffffffffffffffffffffffaa280ffffffffffff36600000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a4703c9567c0e237e9e0fc074edaf831e43ca9187f2bae81644ef82afb7c22cdea40f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226"
+    },
+    "more_signatures_S1": {
+      "M4": "3f711fcd2f9707ac9538eecd320413fc318000cc3f454fc10cf5840c3d8f8959259c2a4b8b36f80ba7c64230524de905438616f60a0f687585d5a75856797c7700",
+      "M5": "e9a1a157062601c2ebc8440d8d0b43258f8bf5b1a4756286d2ea9c9c469544775cda57fc9a096ee73f9b865d3b2b0d1da89aafad478f9582cabb2110bf9a6c6300",
+      "M_far": "6c2c94801c5c143f468413f6e7ad72ec02bc0020baff54e28348cfd2205c36872c4839e9e3dee571d6e7e28b19cd6f06077cb3191b883db00e4d630c69ac75d900",
+      "M_max": "ed66a29e369deba37711f1ee6b1e15647a41dc56556def74c3da7168bc94b3b64ecaff47aee5b8b95b0e24234de814ba87a776447dd7db027204d849d441a45201"
+    },
+    "garbage_signature": "0101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101",
+    "as_of_ms_T_TEST": 1789259460000,
+    "S_max_at_T_TEST": 5,
+    "payload_sets": {
+      "P_FORK": "M0,M1,M2a,M2b,M3 (S1)",
+      "P_BADLINK": "M0,M1,M2a,M2bad,M3 (S1)",
+      "F": "P_FORK + M4, M5 (S1)",
+      "H": "(M0,sigS1) + (M1, garbage) + (M1x, sigS1 over C1)",
+      "I": "P_FORK + (M_far, S1) + (M_max, S1)"
+    },
+    "governance_bounds": {
+      "2-of-2": "invalid",
+      "3-of-4": "invalid",
+      "2-of-3": "valid",
+      "1-of-1": "valid",
+      "2-of-4": "valid"
+    },
+    "scenarios": {
+      "A_fork_no_action": {
+        "al_status": "OK",
+        "head_log_seq": 1,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "UNRESOLVED",
+            "flags": [
+              "EQUIVOCATION"
+            ]
+          },
+          "3": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      },
+      "B_checkpoint_C2a": {
+        "al_status": "OK",
+        "head_log_seq": 2,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "C2a",
+            "flags": []
+          },
+          "3": {
+            "commitment": "C3",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      },
+      "C_checkpoint_C2b": {
+        "al_status": "OK",
+        "head_log_seq": 2,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "C2b",
+            "flags": []
+          },
+          "3": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      },
+      "D_revoke_and_resign": {
+        "al_status": "OK",
+        "head_log_seq": 3,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "C2a",
+            "flags": []
+          },
+          "3": {
+            "commitment": "C3",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      },
+      "E0_orphan_does_not_block": {
+        "al_status": "OK",
+        "head_log_seq": 1,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "C2a",
+            "flags": []
+          },
+          "3": {
+            "commitment": "C3",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      },
+      "E1_checkpoint_non_linking": {
+        "al_status": "OK",
+        "head_log_seq": 2,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "UNRESOLVED",
+            "flags": [
+              "CHECKPOINT_CONFLICT"
+            ]
+          },
+          "3": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      },
+      "F_restart_after_unresolved": {
+        "al_status": "OK",
+        "head_log_seq": 2,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "UNRESOLVED",
+            "flags": [
+              "EQUIVOCATION"
+            ]
+          },
+          "3": {
+            "commitment": "C3",
+            "flags": [
+              "HISTORY_UNRESOLVED_BEFORE"
+            ]
+          },
+          "4": {
+            "commitment": "C4",
+            "flags": [
+              "HISTORY_UNRESOLVED_BEFORE"
+            ]
+          },
+          "5": {
+            "commitment": "C5",
+            "flags": [
+              "HISTORY_UNRESOLVED_BEFORE"
+            ]
+          }
+        }
+      },
+      "G1_governance_fork": {
+        "al_status": "GOVERNANCE_FORK",
+        "head_log_seq": 1
+      },
+      "G2_fork_resolved_by_ack_3of3": {
+        "al_status": "OK",
+        "head_log_seq": 3,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "C2a",
+            "flags": []
+          },
+          "3": {
+            "commitment": "C3",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      },
+      "G3_ack_below_fork_threshold": {
+        "al_status": "GOVERNANCE_FORK",
+        "head_log_seq": 1
+      },
+      "G4_conflicting_acks": {
+        "al_status": "GOVERNANCE_FORK_TERMINAL",
+        "head_log_seq": 1
+      },
+      "G5_non_ack_continuation": {
+        "al_status": "GOVERNANCE_FORK",
+        "head_log_seq": 1
+      },
+      "G6_same_ack_two_bundles": {
+        "al_status": "OK",
+        "head_log_seq": 3,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "C2a",
+            "flags": []
+          },
+          "3": {
+            "commitment": "C3",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      },
+      "H_signature_binding": {
+        "al_status": "OK",
+        "head_log_seq": 1,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "2": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "3": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      },
+      "I_far_sequence_dos": {
+        "al_status": "OK",
+        "head_log_seq": 1,
+        "canonical": {
+          "0": {
+            "commitment": "C0",
+            "flags": []
+          },
+          "1": {
+            "commitment": "C1",
+            "flags": []
+          },
+          "2": {
+            "commitment": "UNRESOLVED",
+            "flags": [
+              "EQUIVOCATION"
+            ]
+          },
+          "3": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "4": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          },
+          "5": {
+            "commitment": "UNRESOLVED",
+            "flags": []
+          }
+        }
+      }
+    },
+    "summary": {
+      "A_fork_no_action": {
+        "0": "C0",
+        "1": "C1",
+        "2": "UNRESOLVED[EQUIVOCATION]",
+        "3": "UNRESOLVED",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      },
+      "B_checkpoint_C2a": {
+        "0": "C0",
+        "1": "C1",
+        "2": "C2a",
+        "3": "C3",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      },
+      "C_checkpoint_C2b": {
+        "0": "C0",
+        "1": "C1",
+        "2": "C2b",
+        "3": "UNRESOLVED",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      },
+      "D_revoke_and_resign": {
+        "0": "C0",
+        "1": "C1",
+        "2": "C2a",
+        "3": "C3",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      },
+      "E0_orphan_does_not_block": {
+        "0": "C0",
+        "1": "C1",
+        "2": "C2a",
+        "3": "C3",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      },
+      "E1_checkpoint_non_linking": {
+        "0": "C0",
+        "1": "C1",
+        "2": "UNRESOLVED[CHECKPOINT_CONFLICT]",
+        "3": "UNRESOLVED",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      },
+      "F_restart_after_unresolved": {
+        "0": "C0",
+        "1": "C1",
+        "2": "UNRESOLVED[EQUIVOCATION]",
+        "3": "C3[HISTORY_UNRESOLVED_BEFORE]",
+        "4": "C4[HISTORY_UNRESOLVED_BEFORE]",
+        "5": "C5[HISTORY_UNRESOLVED_BEFORE]"
+      },
+      "G1_governance_fork": "GOVERNANCE_FORK",
+      "G2_fork_resolved_by_ack_3of3": {
+        "0": "C0",
+        "1": "C1",
+        "2": "C2a",
+        "3": "C3",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      },
+      "G3_ack_below_fork_threshold": "GOVERNANCE_FORK",
+      "G4_conflicting_acks": "GOVERNANCE_FORK_TERMINAL",
+      "G5_non_ack_continuation": "GOVERNANCE_FORK",
+      "G6_same_ack_two_bundles": {
+        "0": "C0",
+        "1": "C1",
+        "2": "C2a",
+        "3": "C3",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      },
+      "H_signature_binding": {
+        "0": "C0",
+        "1": "UNRESOLVED",
+        "2": "UNRESOLVED",
+        "3": "UNRESOLVED",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      },
+      "I_far_sequence_dos": {
+        "0": "C0",
+        "1": "C1",
+        "2": "UNRESOLVED[EQUIVOCATION]",
+        "3": "UNRESOLVED",
+        "4": "UNRESOLVED",
+        "5": "UNRESOLVED"
+      }
+    }
+  },
+  "witness_time": {
+    "solana_slot_times_sec": {
+      "100": 1789258201,
+      "101": null,
+      "102": 1789258203,
+      "103": null
+    },
+    "base_block_timestamps_sec": {
+      "5000": 1789258200,
+      "5001": 1789258202,
+      "5002": 1789258204
+    },
+    "solana_as_of_slot(T=1789258202000)": 100,
+    "solana_as_of_slot(T=1789258203000)": 102,
+    "base_as_of_block(T=1789258203000)": 5001,
+    "solana_reported_time(100)": [
+      1789258201000,
+      "REPORTED"
+    ],
+    "solana_reported_time(101)": [
+      1789258203000,
+      "INFERRED"
+    ],
+    "solana_reported_time(103)": [
+      null,
+      "UNAVAILABLE"
+    ]
+  },
+  "witness_payloads": {
+    "eas_schema_data": "uint64 sequence,bytes32 commitment,bytes manifest,bytes signature",
+    "eas_schema_uid_data": "71160dd1d38fa3cea9fdead2779d18599c9582e49e442bfd3ba7d1198068a684",
+    "eas_schema_al": "uint64 logSeq,bytes32 entryHash,bytes entry,bytes governanceSignatures",
+    "eas_schema_uid_al": "fa05b015396340e1dad97871de2420c86aafc90bfe19dc3fa1c8c678db39c68a",
+    "eas_schema_genesis": "bytes32 streamId,bytes genesisCore",
+    "eas_schema_uid_genesis": "66db46fb9d1a307ccafc25945415e2b6d14a68ce22d22c3943c0f21671087bcd",
+    "eas_data_epoch1_recipient": "0x34c06fac9c45e8ba2e527631e83b0b49bf5e4890",
+    "eas_data_epoch1_abi": "0000000000000000000000000000000000000000000000000000000000000001e2fce44df816d8ce513df26f9d8455556caaec2b91f9985dcd5da0ed0e720f9d0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000000c842594b44010100000000000000000001000001a09814dfe0000001a0981973c00000000400000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa289263d98ab47de6834a5dbb0c9d60106354e1be2e30ed684191336ae0a58ee055593c9567c0e237e9e0fc074edaf831e43ca9187f2bae81644ef82afb7c22cdea40f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d5597342260000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000041cdf678e0013406bbc21ecaeaa9644d898b74037beafd85ebab0ecdd6fac0665b44485c4f095cbb497cf8d6611a0bb525550224a5ebfb3f869cae9ce414ee692c0000000000000000000000000000000000000000000000000000000000000000",
+    "eas_al_E1_abi": "00000000000000000000000000000000000000000000000000000000000000016e633036bcfae38330538cd571f8a97de4e000a8fb23567ccf53cfc9601bb95b00000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000120000000000000000000000000000000000000000000000000000000000000007842594b4c010100280000000000000001aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28920000000000000000000000000000000000000000000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000ffffffffffffffff0000000000000000000000000000000000000000000000000000000000000000000000000000008248e11237fe34d3e7fefa444b6fa16ce08aed7f2c341bbe3c577302d2c0b912e822b45656d1d7dc19c0355aa73c9e414d303b65fc8b7eace8c9e3bef088306bc201a988935e11eff182b3f0fa01f99da4e72797fd00297b579a7dc06e8d1752dc115ccf8b590071345809224a44b4394e11b1dfa943eac580661b9a6457afedf3f900000000000000000000000000000000000000000000000000000000000000",
+    "eas_genesis_abi": "aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000ac42594b4701020300000001a098104c00172de24442f4e5501209928454097ac46c52782b6bd71061242d649ba3296ee00000000000014a34ce59db5080fc2c6d3bcf7ca90712d3c2e5e6c28f27f0dfbb9953bdb0894c03ab4200000000000000000000000000000000000021000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc70997970c51812dc3a010c7d01b50e0d17dc79c890f79bf6eb2c4f870365e785982e1f101e93b9060000000000000000000000000000000000000000",
+    "memo_data_epoch1": "BYK1 42594b44010100000000000000000001000001a09814dfe0000001a0981973c00000000400000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa289263d98ab47de6834a5dbb0c9d60106354e1be2e30ed684191336ae0a58ee055593c9567c0e237e9e0fc074edaf831e43ca9187f2bae81644ef82afb7c22cdea40f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226 cdf678e0013406bbc21ecaeaa9644d898b74037beafd85ebab0ecdd6fac0665b44485c4f095cbb497cf8d6611a0bb525550224a5ebfb3f869cae9ce414ee692c00",
+    "memo_al_E1": "BYKL1 42594b4c010100280000000000000001aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28920000000000000000000000000000000000000000000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266000000000000000000000000ffffffffffffffff 48e11237fe34d3e7fefa444b6fa16ce08aed7f2c341bbe3c577302d2c0b912e822b45656d1d7dc19c0355aa73c9e414d303b65fc8b7eace8c9e3bef088306bc201a988935e11eff182b3f0fa01f99da4e72797fd00297b579a7dc06e8d1752dc115ccf8b590071345809224a44b4394e11b1dfa943eac580661b9a6457afedf3f900",
+    "memo_genesis": "BYKG1 42594b4701020300000001a098104c00172de24442f4e5501209928454097ac46c52782b6bd71061242d649ba3296ee00000000000014a34ce59db5080fc2c6d3bcf7ca90712d3c2e5e6c28f27f0dfbb9953bdb0894c03ab4200000000000000000000000000000000000021000000003c44cdddb6a900fa2b585dd299e03d12fa4293bc70997970c51812dc3a010c7d01b50e0d17dc79c890f79bf6eb2c4f870365e785982e1f101e93b906",
+    "sizes": {
+      "memo_data": 536,
+      "memo_al_E1": 507,
+      "memo_genesis_test": 350,
+      "memo_al_max": 855,
+      "memo_genesis_max": 390,
+      "solana_tx_overhead_model": 295,
+      "max_memo_bytes": 937
+    }
+  },
+  "audit": {
+    "as_of_ms": 1789259160000,
+    "catalog": [
+      [
+        "BYK.BTC.FUNDING.COMPOSITE",
+        "BTC",
+        10,
+        "A"
+      ],
+      [
+        "BYK.ETH.FUNDING.COMPOSITE",
+        "ETH",
+        10,
+        "A"
+      ],
+      [
+        "BYK.SOL.FUNDING.COMPOSITE",
+        "SOL",
+        10,
+        "A"
+      ],
+      [
+        "BYK.BTC.VPIN",
+        "BTC",
+        4,
+        "B"
+      ]
+    ],
+    "methodology_parameters": {
+      "decimals": 10,
+      "min_contributors": 5,
+      "coverage_ok_bps": 9500,
+      "min_source_ratio_bps": 7000,
+      "stale_factor": 2,
+      "oi_max_age_ms": 900000,
+      "price_max_skew_ms": 60000,
+      "outlier_k": 5,
+      "outlier_floor": 50000,
+      "max_weight_bps": 3500
+    },
+    "manifests": {
+      "A2_gap_hex": "42594b44010300000000000000000002000001a0981973c0000001a098229b800000000000000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470e2fce44df816d8ce513df26f9d8455556caaec2b91f9985dcd5da0ed0e720f9df6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "CA2": "70be1cd2066db656c81390ae417d57adaeebb2a8569aed3b017d99b2c628c6b6",
+      "A3_hex": "42594b44010100000000000000000003000001a098229b80000001a098272f600000000400000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892071bbc8c465ce7e95b393cfa2f3b9f42be0183c8d87d46997a9d7d7372e41bfd70be1cd2066db656c81390ae417d57adaeebb2a8569aed3b017d99b2c628c6b6f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+      "CA3": "f37feb6dce9bebd974de38492200539b7d7077ea0c2b1e93babec7e38088e725"
+    },
+    "leaves_A3": [
+      "01010a00258bbe571b178d42b2d9944e617e7adacee828dcca100cfe4edc6b4818df825b0a3ec4fc70eaf64faf6eeda4e9b2bd4742a785464053aa23afad8bd24650e86f000001a098272f60fffffffffffe2fae0005000724450001001712400000000000002b7e",
+      "01000400616bba5f4356cb49392096b70dc18b123c2dfe7c27cb26520be9bcea1fe5e0a8e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f600000000000001ad8000b000b271000000000032c0000000000000000",
+      "01020a008101bb83065325d0a1fa1ab7e8316a2c372da708f2ffdb3d99d362f15616170eaaaebeba3810b1e6b70781f14b2d72c1cb89c0b2b320c43bb67ff79f562f5ff4000001a098272f6000000000000000000003000723aa0001001712400000000000000000",
+      "01010a00c9b4693aac0ef55b0bff2f29ca4338df7e87f688bda4f7c6a1d66891a6722980e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f60000000000001d0520005000724450001001712400000000000002b7e"
+    ],
+    "variants": {
+      "A3bad_missing_catalog_leaf": {
+        "manifest_hex": "42594b44010100000000000000000003000001a098229b80000001a098272f600000000300000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa289275438fe188baa903eedda2e680dedf2cb223f81f360fad47bf7e5daed3c670f770be1cd2066db656c81390ae417d57adaeebb2a8569aed3b017d99b2c628c6b6f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+        "commitment": "a33c546c82bcd83b663e787d34bb1295b24b0488907c5f22b327d23dbd3c41cc",
+        "leaves": [
+          "01010a00258bbe571b178d42b2d9944e617e7adacee828dcca100cfe4edc6b4818df825b0a3ec4fc70eaf64faf6eeda4e9b2bd4742a785464053aa23afad8bd24650e86f000001a098272f60fffffffffffe2fae0005000724450001001712400000000000002b7e",
+          "01020a008101bb83065325d0a1fa1ab7e8316a2c372da708f2ffdb3d99d362f15616170eaaaebeba3810b1e6b70781f14b2d72c1cb89c0b2b320c43bb67ff79f562f5ff4000001a098272f6000000000000000000003000723aa0001001712400000000000000000",
+          "01010a00c9b4693aac0ef55b0bff2f29ca4338df7e87f688bda4f7c6a1d66891a6722980e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f60000000000001d0520005000724450001001712400000000000002b7e"
+        ],
+        "signature_S1": "1ea2ecfe54a10693bb6d9eeac0ee103dc51cbe00736bfd92a4e404ce0120ab9027d7ad87ffa90765fed4fc88a2d16c54fe54a4dcd1dd17eeb3f9dbf2fd07782300"
+      },
+      "A3_tampered_value": {
+        "manifest_hex": "42594b44010100000000000000000003000001a098229b80000001a098272f600000000400000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892c5de6236ed4b53f690cd9a51d4b3fa126489a5e7f9c3344f338626d534d91ac070be1cd2066db656c81390ae417d57adaeebb2a8569aed3b017d99b2c628c6b6f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+        "commitment": "c54106998553d7c1f92b205d79010b5f45941b43010f193d2d3156eada52a611",
+        "leaves": [
+          "01010a00258bbe571b178d42b2d9944e617e7adacee828dcca100cfe4edc6b4818df825b0a3ec4fc70eaf64faf6eeda4e9b2bd4742a785464053aa23afad8bd24650e86f000001a098272f60fffffffffffe2fae0005000724450001001712400000000000002b7e",
+          "01000400616bba5f4356cb49392096b70dc18b123c2dfe7c27cb26520be9bcea1fe5e0a8e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f600000000000001ad8000b000b271000000000032c0000000000000000",
+          "01020a008101bb83065325d0a1fa1ab7e8316a2c372da708f2ffdb3d99d362f15616170eaaaebeba3810b1e6b70781f14b2d72c1cb89c0b2b320c43bb67ff79f562f5ff4000001a098272f6000000000000000000003000723aa0001001712400000000000000000",
+          "01010a00c9b4693aac0ef55b0bff2f29ca4338df7e87f688bda4f7c6a1d66891a6722980e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f60000000000001d0530005000724450001001712400000000000002b7e"
+        ],
+        "signature_S1": "204c3f04ba34ac550b47b4b022316f6bdbf831c9b5ce75f9257840b9c6e2f33e69235ac567a0943c44b233dfd0f35503d530b3b6a21bc0326e8590f2a6e7553b00"
+      },
+      "A3_tampered_source_count": {
+        "manifest_hex": "42594b44010100000000000000000003000001a098229b80000001a098272f600000000400000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa28921199c1cbb45776c2488950e61f7a19eb1307fb3be673d52706c95dfb76f2405070be1cd2066db656c81390ae417d57adaeebb2a8569aed3b017d99b2c628c6b6f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+        "commitment": "e48fcee55d721d5149e42d2f5aa16e36dad0817fb02eee8275f37cc5e4d8de98",
+        "leaves": [
+          "01010a00258bbe571b178d42b2d9944e617e7adacee828dcca100cfe4edc6b4818df825b0a3ec4fc70eaf64faf6eeda4e9b2bd4742a785464053aa23afad8bd24650e86f000001a098272f60fffffffffffe2fae0005000724450001001712400000000000002b7e",
+          "01000400616bba5f4356cb49392096b70dc18b123c2dfe7c27cb26520be9bcea1fe5e0a8e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f600000000000001ad8000b000b271000000000032c0000000000000000",
+          "01020a008101bb83065325d0a1fa1ab7e8316a2c372da708f2ffdb3d99d362f15616170eaaaebeba3810b1e6b70781f14b2d72c1cb89c0b2b320c43bb67ff79f562f5ff4000001a098272f6000000000000000000003000723aa0001001712400000000000000000",
+          "01010a00c9b4693aac0ef55b0bff2f29ca4338df7e87f688bda4f7c6a1d66891a6722980e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f60000000000001d0520006000724450001001712400000000000002b7e"
+        ],
+        "signature_S1": "c57332a25bb211e7e2de731bd53d6ff60b6b56d3d17d5f4357700ae823e8f29c098b542e460c9257fd6160ce1b8df6514005ef4a7c1b09f0cafeaa6893a3f08e00"
+      },
+      "A3_no_data_despite_inputs": {
+        "manifest_hex": "42594b44010100000000000000000003000001a098229b80000001a098272f600000000400000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa2892e97e72961db9a6d2853e2fdcaee955571b1873e249c9ca3a5c22ff0ec87489ac70be1cd2066db656c81390ae417d57adaeebb2a8569aed3b017d99b2c628c6b6f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+        "commitment": "2197d846117a4fb7085980ac98ffb73e4f309ebb3d399615c44c5e60f0d5af58",
+        "leaves": [
+          "01010a00258bbe571b178d42b2d9944e617e7adacee828dcca100cfe4edc6b4818df825b0a3ec4fc70eaf64faf6eeda4e9b2bd4742a785464053aa23afad8bd24650e86f000001a098272f60fffffffffffe2fae0005000724450001001712400000000000002b7e",
+          "01000400616bba5f4356cb49392096b70dc18b123c2dfe7c27cb26520be9bcea1fe5e0a8e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f600000000000001ad8000b000b271000000000032c0000000000000000",
+          "01020a008101bb83065325d0a1fa1ab7e8316a2c372da708f2ffdb3d99d362f15616170eaaaebeba3810b1e6b70781f14b2d72c1cb89c0b2b320c43bb67ff79f562f5ff4000001a098272f6000000000000000000003000723aa0001001712400000000000000000",
+          "01030a00c9b4693aac0ef55b0bff2f29ca4338df7e87f688bda4f7c6a1d66891a6722980e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f6000000000000000000000000700000000000000000000000000000000"
+        ],
+        "signature_S1": "f8b13cdb127bc947ae71303436e96081ca357c6438809a9d8236a2e9bdcd65bc7f845aa1f2d4d62db25583c2bc556c05124cf4104a658a56b8cc707e346c914101"
+      },
+      "A3_insufficient_wrong_quality": {
+        "manifest_hex": "42594b44010100000000000000000003000001a098229b80000001a098272f600000000400000000aa9c3fba4bd9e4e8f9ccfa4423a3bcbae240653fa2fa343c578034ae78fa289267067ce751030424a6ac8a8b2427a585a23a6e1624df42604e2cc3b0b38ff3d870be1cd2066db656c81390ae417d57adaeebb2a8569aed3b017d99b2c628c6b6f6a9558708bc7ad51652433412f3bebd0b1399a3c7bcbbf7e2e8b01c826306f80874bea7da3827c6ae3bee1f9b3e605927a392f4fef0080fbba4d3d559734226",
+        "commitment": "7bdc518d262647b7b1e36ee318173b74ed6eabaa9336ab606bcd7366b08f0655",
+        "leaves": [
+          "01010a00258bbe571b178d42b2d9944e617e7adacee828dcca100cfe4edc6b4818df825b0a3ec4fc70eaf64faf6eeda4e9b2bd4742a785464053aa23afad8bd24650e86f000001a098272f60fffffffffffe2fae0005000724450001001712400000000000002b7e",
+          "01000400616bba5f4356cb49392096b70dc18b123c2dfe7c27cb26520be9bcea1fe5e0a8e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f600000000000001ad8000b000b271000000000032c0000000000000000",
+          "01020a008101bb83065325d0a1fa1ab7e8316a2c372da708f2ffdb3d99d362f15616170eaaaebeba3810b1e6b70781f14b2d72c1cb89c0b2b320c43bb67ff79f562f5ff4000001a098272f60000000000000000000040007270f0001001712400000000000000000",
+          "01010a00c9b4693aac0ef55b0bff2f29ca4338df7e87f688bda4f7c6a1d66891a6722980e98e2830be1a7e4156d656a7505e65d08c67660dc618072422e9c78053c261e9000001a098272f60000000000001d0520005000724450001001712400000000000002b7e"
+        ],
+        "signature_S1": "ee30b74b10d2b8ec5c83e966c1f9c9f2601f56e7b56b275d1fa959e39295e22055c91e4ea59426658121380b13f21000d3e9a40784016414314703b924eec15500"
+      }
+    },
+    "signatures_S1": {
+      "A2": "7338b01206f4bd73a11353e3acbfb456df3532046122adc95f2d08d1b29508e915cab0b35fc1d67fb7a85bb2ad96a4f518fe3ed4878b34ccd5696e6b69b0e04a00",
+      "A3": "28271b507d0d42b24af930b67024c157449501919527caaa0ad7653846269d5b62919c62730053161d0528e4f41ebc07ed5618f5617c760e326bb3febd78f8f300"
+    },
+    "class_a_snapshots": {
+      "1|BYK.BTC.FUNDING.COMPOSITE|BTC": {
+        "T": 1789258200000,
+        "parameters": {
+          "decimals": 10,
+          "min_contributors": 5,
+          "coverage_ok_bps": 9500,
+          "min_source_ratio_bps": 7000,
+          "stale_factor": 2,
+          "oi_max_age_ms": 900000,
+          "price_max_skew_ms": 60000,
+          "outlier_k": 5,
+          "outlier_floor": 50000,
+          "max_weight_bps": 3500
+        },
+        "venues": [
+          {
+            "venue": "venue-a",
+            "rate": "0.0001",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789256688",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "42000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-b",
+            "rate": "0.008",
+            "rate_unit": "PERCENT",
+            "interval": "28800",
+            "interval_unit": "s",
+            "settlement_ts": "1789256688000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "QUOTE",
+            "oi_value": "2900000000.75",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789258140000",
+            "oi_ts_unit": "ms",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-c",
+            "rate": "0.000013",
+            "rate_unit": "FRACTION",
+            "interval": "3600000",
+            "interval_unit": "ms",
+            "settlement_ts": "1789257288",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "13000000",
+            "contract_size": "0.001",
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-d",
+            "rate": "1.12",
+            "rate_unit": "BPS",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789256688000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "BASE",
+            "oi_value": "11000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789258140000",
+            "oi_ts_unit": "ms",
+            "price_ts": "1789258145000",
+            "price_ts_unit": "ms"
+          },
+          {
+            "venue": "venue-e",
+            "rate": "0.000046",
+            "rate_unit": "FRACTION",
+            "interval": "14400",
+            "interval_unit": "s",
+            "settlement_ts": "1789256688",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "900000",
+            "contract_size": "0.01",
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-f",
+            "rate": "0.00064",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789256688",
+            "settlement_ts_unit": "s",
+            "oi_unit": "QUOTE",
+            "oi_value": "300000000",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-g",
+            "rate": "0.00009",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789197000",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "5000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          }
+        ]
+      },
+      "1|BYK.ETH.FUNDING.COMPOSITE|ETH": {
+        "T": 1789258200000,
+        "parameters": {
+          "decimals": 10,
+          "min_contributors": 5,
+          "coverage_ok_bps": 9500,
+          "min_source_ratio_bps": 7000,
+          "stale_factor": 2,
+          "oi_max_age_ms": 900000,
+          "price_max_skew_ms": 60000,
+          "outlier_k": 5,
+          "outlier_floor": 50000,
+          "max_weight_bps": 3500
+        },
+        "venues": [
+          {
+            "venue": "venue-a",
+            "rate": "0.0001",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789256688",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "42000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-b",
+            "rate": "0.008",
+            "rate_unit": "PERCENT",
+            "interval": "28800",
+            "interval_unit": "s",
+            "settlement_ts": "1789256688000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "QUOTE",
+            "oi_value": "2900000000.75",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789258140000",
+            "oi_ts_unit": "ms",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-c",
+            "rate": "0.000013",
+            "rate_unit": "FRACTION",
+            "interval": "3600000",
+            "interval_unit": "ms",
+            "settlement_ts": "1789257288",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "13000000",
+            "contract_size": "0.001",
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-d",
+            "rate": "1.12",
+            "rate_unit": "BPS",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789256688000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "BASE",
+            "oi_value": "11000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789258140000",
+            "oi_ts_unit": "ms",
+            "price_ts": "1789258020000",
+            "price_ts_unit": "ms"
+          },
+          {
+            "venue": "venue-e",
+            "rate": "0.000046",
+            "rate_unit": "FRACTION",
+            "interval": "14400",
+            "interval_unit": "s",
+            "settlement_ts": "1789256688",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "900000",
+            "contract_size": "0.01",
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258020000",
+            "price_ts_unit": "ms"
+          },
+          {
+            "venue": "venue-f",
+            "rate": "0.00064",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789256688",
+            "settlement_ts_unit": "s",
+            "oi_unit": "QUOTE",
+            "oi_value": "300000000",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-g",
+            "rate": "0.00009",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789197000",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "5000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          }
+        ]
+      },
+      "1|BYK.SOL.FUNDING.COMPOSITE|SOL": {
+        "T": 1789258200000,
+        "parameters": {
+          "decimals": 10,
+          "min_contributors": 5,
+          "coverage_ok_bps": 9500,
+          "min_source_ratio_bps": 7000,
+          "stale_factor": 2,
+          "oi_max_age_ms": 900000,
+          "price_max_skew_ms": 60000,
+          "outlier_k": 5,
+          "outlier_floor": 50000,
+          "max_weight_bps": 3500
+        },
+        "venues": [
+          {
+            "venue": "venue-a",
+            "rate": "-0.0001",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789256688",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "42000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-b",
+            "rate": "-0.008",
+            "rate_unit": "PERCENT",
+            "interval": "28800",
+            "interval_unit": "s",
+            "settlement_ts": "1789256688000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "QUOTE",
+            "oi_value": "2900000000.75",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789258140000",
+            "oi_ts_unit": "ms",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-c",
+            "rate": "-0.000013",
+            "rate_unit": "FRACTION",
+            "interval": "3600000",
+            "interval_unit": "ms",
+            "settlement_ts": "1789257288",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "13000000",
+            "contract_size": "0.001",
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-d",
+            "rate": "-1.12",
+            "rate_unit": "BPS",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789256688000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "BASE",
+            "oi_value": "11000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789258140000",
+            "oi_ts_unit": "ms",
+            "price_ts": "1789258145000",
+            "price_ts_unit": "ms"
+          },
+          {
+            "venue": "venue-e",
+            "rate": "-0.000046",
+            "rate_unit": "FRACTION",
+            "interval": "14400",
+            "interval_unit": "s",
+            "settlement_ts": "1789256688",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "900000",
+            "contract_size": "0.01",
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-f",
+            "rate": "-0.00064",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789256688",
+            "settlement_ts_unit": "s",
+            "oi_unit": "QUOTE",
+            "oi_value": "300000000",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-g",
+            "rate": "-0.00009",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789197000",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "5000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789258140",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258145",
+            "price_ts_unit": "s"
+          }
+        ]
+      },
+      "3|BYK.BTC.FUNDING.COMPOSITE|BTC": {
+        "T": 1789259100000,
+        "parameters": {
+          "decimals": 10,
+          "min_contributors": 5,
+          "coverage_ok_bps": 9500,
+          "min_source_ratio_bps": 7000,
+          "stale_factor": 2,
+          "oi_max_age_ms": 900000,
+          "price_max_skew_ms": 60000,
+          "outlier_k": 5,
+          "outlier_floor": 50000,
+          "max_weight_bps": 3500
+        },
+        "venues": [
+          {
+            "venue": "venue-a",
+            "rate": "0.0001",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789257588",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "42000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-b",
+            "rate": "0.008",
+            "rate_unit": "PERCENT",
+            "interval": "28800",
+            "interval_unit": "s",
+            "settlement_ts": "1789257588000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "QUOTE",
+            "oi_value": "2900000000.75",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789259040000",
+            "oi_ts_unit": "ms",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-c",
+            "rate": "0.000013",
+            "rate_unit": "FRACTION",
+            "interval": "3600000",
+            "interval_unit": "ms",
+            "settlement_ts": "1789258188",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "13000000",
+            "contract_size": "0.001",
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-d",
+            "rate": "1.12",
+            "rate_unit": "BPS",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789257588000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "BASE",
+            "oi_value": "11000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789259040000",
+            "oi_ts_unit": "ms",
+            "price_ts": "1789259045000",
+            "price_ts_unit": "ms"
+          },
+          {
+            "venue": "venue-e",
+            "rate": "0.000046",
+            "rate_unit": "FRACTION",
+            "interval": "14400",
+            "interval_unit": "s",
+            "settlement_ts": "1789257588",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "900000",
+            "contract_size": "0.01",
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-f",
+            "rate": "0.00064",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789257588",
+            "settlement_ts_unit": "s",
+            "oi_unit": "QUOTE",
+            "oi_value": "300000000",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-g",
+            "rate": "0.00009",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789197900",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "5000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          }
+        ]
+      },
+      "3|BYK.ETH.FUNDING.COMPOSITE|ETH": {
+        "T": 1789259100000,
+        "parameters": {
+          "decimals": 10,
+          "min_contributors": 5,
+          "coverage_ok_bps": 9500,
+          "min_source_ratio_bps": 7000,
+          "stale_factor": 2,
+          "oi_max_age_ms": 900000,
+          "price_max_skew_ms": 60000,
+          "outlier_k": 5,
+          "outlier_floor": 50000,
+          "max_weight_bps": 3500
+        },
+        "venues": [
+          {
+            "venue": "venue-a",
+            "rate": "0.0001",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789257588",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "42000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-b",
+            "rate": "0.008",
+            "rate_unit": "PERCENT",
+            "interval": "28800",
+            "interval_unit": "s",
+            "settlement_ts": "1789257588000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "QUOTE",
+            "oi_value": "2900000000.75",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789259040000",
+            "oi_ts_unit": "ms",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-c",
+            "rate": "0.000013",
+            "rate_unit": "FRACTION",
+            "interval": "3600000",
+            "interval_unit": "ms",
+            "settlement_ts": "1789258188",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "13000000",
+            "contract_size": "0.001",
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-d",
+            "rate": "1.12",
+            "rate_unit": "BPS",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789257588000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "BASE",
+            "oi_value": "11000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789259040000",
+            "oi_ts_unit": "ms",
+            "price_ts": "1789258920000",
+            "price_ts_unit": "ms"
+          },
+          {
+            "venue": "venue-e",
+            "rate": "0.000046",
+            "rate_unit": "FRACTION",
+            "interval": "14400",
+            "interval_unit": "s",
+            "settlement_ts": "1789257588",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "900000",
+            "contract_size": "0.01",
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789258920000",
+            "price_ts_unit": "ms"
+          },
+          {
+            "venue": "venue-f",
+            "rate": "0.00064",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789257588",
+            "settlement_ts_unit": "s",
+            "oi_unit": "QUOTE",
+            "oi_value": "300000000",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-g",
+            "rate": "0.00009",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789197900",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "5000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          }
+        ]
+      },
+      "3|BYK.SOL.FUNDING.COMPOSITE|SOL": {
+        "T": 1789259100000,
+        "parameters": {
+          "decimals": 10,
+          "min_contributors": 5,
+          "coverage_ok_bps": 9500,
+          "min_source_ratio_bps": 7000,
+          "stale_factor": 2,
+          "oi_max_age_ms": 900000,
+          "price_max_skew_ms": 60000,
+          "outlier_k": 5,
+          "outlier_floor": 50000,
+          "max_weight_bps": 3500
+        },
+        "venues": [
+          {
+            "venue": "venue-a",
+            "rate": "-0.0001",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789257588",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "42000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-b",
+            "rate": "-0.008",
+            "rate_unit": "PERCENT",
+            "interval": "28800",
+            "interval_unit": "s",
+            "settlement_ts": "1789257588000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "QUOTE",
+            "oi_value": "2900000000.75",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789259040000",
+            "oi_ts_unit": "ms",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-c",
+            "rate": "-0.000013",
+            "rate_unit": "FRACTION",
+            "interval": "3600000",
+            "interval_unit": "ms",
+            "settlement_ts": "1789258188",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "13000000",
+            "contract_size": "0.001",
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-d",
+            "rate": "-1.12",
+            "rate_unit": "BPS",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789257588000",
+            "settlement_ts_unit": "ms",
+            "oi_unit": "BASE",
+            "oi_value": "11000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789259040000",
+            "oi_ts_unit": "ms",
+            "price_ts": "1789259045000",
+            "price_ts_unit": "ms"
+          },
+          {
+            "venue": "venue-e",
+            "rate": "-0.000046",
+            "rate_unit": "FRACTION",
+            "interval": "14400",
+            "interval_unit": "s",
+            "settlement_ts": "1789257588",
+            "settlement_ts_unit": "s",
+            "oi_unit": "CONTRACTS",
+            "oi_value": "900000",
+            "contract_size": "0.01",
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          },
+          {
+            "venue": "venue-f",
+            "rate": "-0.00064",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789257588",
+            "settlement_ts_unit": "s",
+            "oi_unit": "QUOTE",
+            "oi_value": "300000000",
+            "contract_size": null,
+            "mark_price": null,
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": null,
+            "price_ts_unit": null
+          },
+          {
+            "venue": "venue-g",
+            "rate": "-0.00009",
+            "rate_unit": "FRACTION",
+            "interval": "8",
+            "interval_unit": "h",
+            "settlement_ts": "1789197900",
+            "settlement_ts_unit": "s",
+            "oi_unit": "BASE",
+            "oi_value": "5000",
+            "contract_size": null,
+            "mark_price": "100000",
+            "oi_ts": "1789259040",
+            "oi_ts_unit": "s",
+            "price_ts": "1789259045",
+            "price_ts_unit": "s"
+          }
+        ]
+      }
+    },
+    "results": {
+      "AUD1_normal_gap_normal_[0,3]": {
+        "result": "PASS",
+        "reasons": []
+      },
+      "AUD2_catalog_leaf_missing_[0,3]": {
+        "result": "FAIL",
+        "reasons": [
+          "sequence 3: leaf set or decimals differ from catalog"
+        ]
+      },
+      "AUD3_range_includes_unresolved_[0,4]": {
+        "result": "FAIL",
+        "reasons": [
+          "sequence 4: not CANONICAL"
+        ]
+      },
+      "AUD4_range_starts_after_gap_[3,3]": {
+        "result": "PASS",
+        "reasons": []
+      },
+      "AUD5_class_a_value_tampered_[0,3]": {
+        "result": "FAIL",
+        "reasons": [
+          "sequence 3: Class A recomputation mismatch for BYK.BTC.FUNDING.COMPOSITE/BTC (value)"
+        ]
+      },
+      "AUD6_class_a_source_count_tampered_[0,3]": {
+        "result": "FAIL",
+        "reasons": [
+          "sequence 3: Class A recomputation mismatch for BYK.BTC.FUNDING.COMPOSITE/BTC (source_count)"
+        ]
+      },
+      "AUD7_no_data_despite_sufficient_inputs_[0,3]": {
+        "result": "FAIL",
+        "reasons": [
+          "sequence 3: Class A recomputation mismatch for BYK.BTC.FUNDING.COMPOSITE/BTC (status, value, source_count, coverage_bps, outlier_count, max_source_age_ms, dispersion)"
+        ]
+      },
+      "AUD8_insufficient_with_wrong_quality_[0,3]": {
+        "result": "FAIL",
+        "reasons": [
+          "sequence 3: Class A recomputation mismatch for BYK.ETH.FUNDING.COMPOSITE/ETH (source_count, coverage_bps)"
+        ]
+      },
+      "AUD9_class_a_snapshot_missing_[0,3]": {
+        "result": "FAIL",
+        "reasons": [
+          "sequence 3: Class A snapshot missing for BYK.SOL.FUNDING.COMPOSITE/SOL"
+        ]
+      },
+      "AUD10_parameters_differ_from_methodology_[0,3]": {
+        "result": "FAIL",
+        "reasons": [
+          "sequence 1: Class A snapshot T or parameters differ for BYK.SOL.FUNDING.COMPOSITE/SOL",
+          "sequence 1: Class A snapshot T or parameters differ for BYK.ETH.FUNDING.COMPOSITE/ETH",
+          "sequence 1: Class A snapshot T or parameters differ for BYK.BTC.FUNDING.COMPOSITE/BTC",
+          "sequence 3: Class A snapshot T or parameters differ for BYK.SOL.FUNDING.COMPOSITE/SOL",
+          "sequence 3: Class A snapshot T or parameters differ for BYK.ETH.FUNDING.COMPOSITE/ETH",
+          "sequence 3: Class A snapshot T or parameters differ for BYK.BTC.FUNDING.COMPOSITE/BTC"
+        ]
+      }
+    }
+  },
+  "annex_a": {
+    "parameters": {
+      "decimals": 10,
+      "min_contributors": 5,
+      "coverage_ok_bps": 9500,
+      "min_source_ratio_bps": 7000,
+      "stale_factor": 2,
+      "oi_max_age_ms": 900000,
+      "price_max_skew_ms": 60000,
+      "outlier_k": 5,
+      "outlier_floor": 50000,
+      "max_weight_bps": 3500
+    },
+    "T": 1789258200000,
+    "venues_input": [
+      {
+        "venue": "venue-a",
+        "rate": "0.0001",
+        "rate_unit": "FRACTION",
+        "interval": "8",
+        "interval_unit": "h",
+        "settlement_ts": "1789256688",
+        "settlement_ts_unit": "s",
+        "oi_unit": "BASE",
+        "oi_value": "42000",
+        "contract_size": null,
+        "mark_price": "100000",
+        "oi_ts": "1789258140",
+        "oi_ts_unit": "s",
+        "price_ts": "1789258145",
+        "price_ts_unit": "s"
+      },
+      {
+        "venue": "venue-b",
+        "rate": "0.008",
+        "rate_unit": "PERCENT",
+        "interval": "28800",
+        "interval_unit": "s",
+        "settlement_ts": "1789256688000",
+        "settlement_ts_unit": "ms",
+        "oi_unit": "QUOTE",
+        "oi_value": "2900000000.75",
+        "contract_size": null,
+        "mark_price": null,
+        "oi_ts": "1789258140000",
+        "oi_ts_unit": "ms",
+        "price_ts": null,
+        "price_ts_unit": null
+      },
+      {
+        "venue": "venue-c",
+        "rate": "0.000013",
+        "rate_unit": "FRACTION",
+        "interval": "3600000",
+        "interval_unit": "ms",
+        "settlement_ts": "1789257288",
+        "settlement_ts_unit": "s",
+        "oi_unit": "CONTRACTS",
+        "oi_value": "13000000",
+        "contract_size": "0.001",
+        "mark_price": "100000",
+        "oi_ts": "1789258140",
+        "oi_ts_unit": "s",
+        "price_ts": "1789258145",
+        "price_ts_unit": "s"
+      },
+      {
+        "venue": "venue-d",
+        "rate": "1.12",
+        "rate_unit": "BPS",
+        "interval": "8",
+        "interval_unit": "h",
+        "settlement_ts": "1789256688000",
+        "settlement_ts_unit": "ms",
+        "oi_unit": "BASE",
+        "oi_value": "11000",
+        "contract_size": null,
+        "mark_price": "100000",
+        "oi_ts": "1789258140000",
+        "oi_ts_unit": "ms",
+        "price_ts": "1789258145000",
+        "price_ts_unit": "ms"
+      },
+      {
+        "venue": "venue-e",
+        "rate": "0.000046",
+        "rate_unit": "FRACTION",
+        "interval": "14400",
+        "interval_unit": "s",
+        "settlement_ts": "1789256688",
+        "settlement_ts_unit": "s",
+        "oi_unit": "CONTRACTS",
+        "oi_value": "900000",
+        "contract_size": "0.01",
+        "mark_price": "100000",
+        "oi_ts": "1789258140",
+        "oi_ts_unit": "s",
+        "price_ts": "1789258145",
+        "price_ts_unit": "s"
+      },
+      {
+        "venue": "venue-f",
+        "rate": "0.00064",
+        "rate_unit": "FRACTION",
+        "interval": "8",
+        "interval_unit": "h",
+        "settlement_ts": "1789256688",
+        "settlement_ts_unit": "s",
+        "oi_unit": "QUOTE",
+        "oi_value": "300000000",
+        "contract_size": null,
+        "mark_price": null,
+        "oi_ts": "1789258140",
+        "oi_ts_unit": "s",
+        "price_ts": null,
+        "price_ts_unit": null
+      },
+      {
+        "venue": "venue-g",
+        "rate": "0.00009",
+        "rate_unit": "FRACTION",
+        "interval": "8",
+        "interval_unit": "h",
+        "settlement_ts": "1789197000",
+        "settlement_ts_unit": "s",
+        "oi_unit": "BASE",
+        "oi_value": "5000",
+        "contract_size": null,
+        "mark_price": "100000",
+        "oi_ts": "1789258140",
+        "oi_ts_unit": "s",
+        "price_ts": "1789258145",
+        "price_ts_unit": "s"
+      }
+    ],
+    "example_main": {
+      "leaf": {
+        "value": 118866,
+        "dispersion": 11134,
+        "source_count": 5,
+        "expected_source_count": 7,
+        "coverage_bps": 9285,
+        "outlier_count": 1,
+        "max_source_age_ms": 1512000,
+        "status": "DEGRADED",
+        "median": 125000,
+        "mad": 12500,
+        "tau": 62500,
+        "capped_count": 1,
+        "cap_weight": 3338461538,
+        "max_weight_share_bps": 3499,
+        "weights": {
+          "venue-a": 3338461538,
+          "venue-b": 2900000000,
+          "venue-c": 1300000000,
+          "venue-d": 1100000000,
+          "venue-e": 900000000
+        }
+      },
+      "venues": [
+        {
+          "venue": "venue-a",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 28800000,
+          "units": 1000000,
+          "hourly": 125000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_usd": 4200000000,
+          "oi_ages": [
+            60000,
+            55000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "venue-b",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 28800000,
+          "units": 800000,
+          "hourly": 100000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_usd": 2900000000,
+          "oi_ages": [
+            60000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "venue-c",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 3600000,
+          "units": 130000,
+          "hourly": 130000,
+          "settle_age": 912000,
+          "stale": false,
+          "oi_usd": 1300000000,
+          "oi_ages": [
+            60000,
+            55000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "venue-d",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 28800000,
+          "units": 1120000,
+          "hourly": 140000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_usd": 1100000000,
+          "oi_ages": [
+            60000,
+            55000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "venue-e",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 14400000,
+          "units": 460000,
+          "hourly": 115000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_usd": 900000000,
+          "oi_ages": [
+            60000,
+            55000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "venue-f",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 28800000,
+          "units": 6400000,
+          "hourly": 800000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_usd": 300000000,
+          "oi_ages": [
+            60000
+          ],
+          "outlier": true
+        },
+        {
+          "venue": "venue-g",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": false,
+          "interval_ms": 28800000,
+          "units": 900000,
+          "hourly": 112500,
+          "settle_age": 61200000,
+          "stale": true,
+          "oi_usd": 500000000,
+          "oi_ages": [
+            60000,
+            55000
+          ]
+        }
+      ]
+    },
+    "example_no_data": {
+      "T": 1789431000000,
+      "leaf": {
+        "value": 0,
+        "dispersion": 0,
+        "source_count": 0,
+        "expected_source_count": 7,
+        "coverage_bps": 0,
+        "outlier_count": 0,
+        "max_source_age_ms": 0,
+        "status": "NO_DATA"
+      },
+      "venues": [
+        {
+          "venue": "venue-a",
+          "valid_rate": true,
+          "valid_oi": false,
+          "eligible": false,
+          "interval_ms": 28800000,
+          "units": 1000000,
+          "hourly": 125000,
+          "settle_age": 174312000,
+          "stale": true,
+          "oi_error": "oi bounds or timing"
+        },
+        {
+          "venue": "venue-b",
+          "valid_rate": true,
+          "valid_oi": false,
+          "eligible": false,
+          "interval_ms": 28800000,
+          "units": 800000,
+          "hourly": 100000,
+          "settle_age": 174312000,
+          "stale": true,
+          "oi_error": "oi bounds or timing"
+        },
+        {
+          "venue": "venue-c",
+          "valid_rate": true,
+          "valid_oi": false,
+          "eligible": false,
+          "interval_ms": 3600000,
+          "units": 130000,
+          "hourly": 130000,
+          "settle_age": 173712000,
+          "stale": true,
+          "oi_error": "oi bounds or timing"
+        },
+        {
+          "venue": "venue-d",
+          "valid_rate": true,
+          "valid_oi": false,
+          "eligible": false,
+          "interval_ms": 28800000,
+          "units": 1120000,
+          "hourly": 140000,
+          "settle_age": 174312000,
+          "stale": true,
+          "oi_error": "oi bounds or timing"
+        },
+        {
+          "venue": "venue-e",
+          "valid_rate": true,
+          "valid_oi": false,
+          "eligible": false,
+          "interval_ms": 14400000,
+          "units": 460000,
+          "hourly": 115000,
+          "settle_age": 174312000,
+          "stale": true,
+          "oi_error": "oi bounds or timing"
+        },
+        {
+          "venue": "venue-f",
+          "valid_rate": true,
+          "valid_oi": false,
+          "eligible": false,
+          "interval_ms": 28800000,
+          "units": 6400000,
+          "hourly": 800000,
+          "settle_age": 174312000,
+          "stale": true,
+          "oi_error": "oi bounds or timing"
+        },
+        {
+          "venue": "venue-g",
+          "valid_rate": true,
+          "valid_oi": false,
+          "eligible": false,
+          "interval_ms": 28800000,
+          "units": 900000,
+          "hourly": 112500,
+          "settle_age": 234000000,
+          "stale": true,
+          "oi_error": "oi bounds or timing"
+        }
+      ]
+    },
+    "example_insufficient_coverage": {
+      "T": 1789258200000,
+      "note": "venue-d and venue-e mark prices 120 s older than OI",
+      "leaf": {
+        "value": 0,
+        "dispersion": 0,
+        "source_count": 3,
+        "expected_source_count": 7,
+        "coverage_bps": 9130,
+        "outlier_count": 1,
+        "max_source_age_ms": 1512000,
+        "status": "INSUFFICIENT_COVERAGE",
+        "median": 125000,
+        "mad": 15000,
+        "tau": 75000
+      },
+      "venues": [
+        {
+          "venue": "venue-a",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 28800000,
+          "units": 1000000,
+          "hourly": 125000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_usd": 4200000000,
+          "oi_ages": [
+            60000,
+            55000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "venue-b",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 28800000,
+          "units": 800000,
+          "hourly": 100000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_usd": 2900000000,
+          "oi_ages": [
+            60000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "venue-c",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 3600000,
+          "units": 130000,
+          "hourly": 130000,
+          "settle_age": 912000,
+          "stale": false,
+          "oi_usd": 1300000000,
+          "oi_ages": [
+            60000,
+            55000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "venue-d",
+          "valid_rate": true,
+          "valid_oi": false,
+          "eligible": false,
+          "interval_ms": 28800000,
+          "units": 1120000,
+          "hourly": 140000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_error": "price timing"
+        },
+        {
+          "venue": "venue-e",
+          "valid_rate": true,
+          "valid_oi": false,
+          "eligible": false,
+          "interval_ms": 14400000,
+          "units": 460000,
+          "hourly": 115000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_error": "price timing"
+        },
+        {
+          "venue": "venue-f",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 28800000,
+          "units": 6400000,
+          "hourly": 800000,
+          "settle_age": 1512000,
+          "stale": false,
+          "oi_usd": 300000000,
+          "oi_ages": [
+            60000
+          ],
+          "outlier": true
+        },
+        {
+          "venue": "venue-g",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": false,
+          "interval_ms": 28800000,
+          "units": 900000,
+          "hourly": 112500,
+          "settle_age": 61200000,
+          "stale": true,
+          "oi_usd": 500000000,
+          "oi_ages": [
+            60000,
+            55000
+          ]
+        }
+      ]
+    },
+    "example_rc4_overflow_inputs": {
+      "leaf": {
+        "value": 0,
+        "dispersion": 0,
+        "source_count": 0,
+        "expected_source_count": 5,
+        "coverage_bps": 0,
+        "outlier_count": 0,
+        "max_source_age_ms": 0,
+        "status": "NO_DATA"
+      },
+      "venues": [
+        {
+          "venue": "p1",
+          "valid_rate": false,
+          "valid_oi": true,
+          "eligible": false,
+          "rate_error": "hourly outside +-(2^62 - 1)",
+          "oi_usd": 3500,
+          "oi_ages": [
+            1000
+          ]
+        },
+        {
+          "venue": "p2",
+          "valid_rate": false,
+          "valid_oi": true,
+          "eligible": false,
+          "rate_error": "hourly outside +-(2^62 - 1)",
+          "oi_usd": 3500,
+          "oi_ages": [
+            1000
+          ]
+        },
+        {
+          "venue": "n1",
+          "valid_rate": false,
+          "valid_oi": true,
+          "eligible": false,
+          "rate_error": "hourly outside +-(2^62 - 1)",
+          "oi_usd": 1000,
+          "oi_ages": [
+            1000
+          ]
+        },
+        {
+          "venue": "n2",
+          "valid_rate": false,
+          "valid_oi": true,
+          "eligible": false,
+          "rate_error": "hourly outside +-(2^62 - 1)",
+          "oi_usd": 1000,
+          "oi_ages": [
+            1000
+          ]
+        },
+        {
+          "venue": "n3",
+          "valid_rate": false,
+          "valid_oi": true,
+          "eligible": false,
+          "rate_error": "hourly outside +-(2^62 - 1)",
+          "oi_usd": 1000,
+          "oi_ages": [
+            1000
+          ]
+        }
+      ]
+    },
+    "example_extreme_hourly_bound": {
+      "leaf": {
+        "value": "1844674407370955161",
+        "dispersion": "6456360425798343064",
+        "source_count": 5,
+        "expected_source_count": 5,
+        "coverage_bps": 10000,
+        "outlier_count": 0,
+        "max_source_age_ms": 1000,
+        "status": "OK",
+        "median": "4611686018427387903",
+        "mad": "9223372036854775806",
+        "tau": "46116860184273879030",
+        "capped_count": 0,
+        "cap_weight": null,
+        "max_weight_share_bps": 3500,
+        "weights": {
+          "p1": 3500,
+          "p2": 3500,
+          "n1": 1000,
+          "n2": 1000,
+          "n3": 1000
+        }
+      },
+      "venues": [
+        {
+          "venue": "p1",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 3600000,
+          "units": "4611686018427387903",
+          "hourly": "4611686018427387903",
+          "settle_age": 1000,
+          "stale": false,
+          "oi_usd": 3500,
+          "oi_ages": [
+            1000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "p2",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 3600000,
+          "units": "4611686018427387903",
+          "hourly": "4611686018427387903",
+          "settle_age": 1000,
+          "stale": false,
+          "oi_usd": 3500,
+          "oi_ages": [
+            1000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "n1",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 3600000,
+          "units": "-4611686018427387903",
+          "hourly": "-4611686018427387903",
+          "settle_age": 1000,
+          "stale": false,
+          "oi_usd": 1000,
+          "oi_ages": [
+            1000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "n2",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 3600000,
+          "units": "-4611686018427387903",
+          "hourly": "-4611686018427387903",
+          "settle_age": 1000,
+          "stale": false,
+          "oi_usd": 1000,
+          "oi_ages": [
+            1000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "n3",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 3600000,
+          "units": "-4611686018427387903",
+          "hourly": "-4611686018427387903",
+          "settle_age": 1000,
+          "stale": false,
+          "oi_usd": 1000,
+          "oi_ages": [
+            1000
+          ],
+          "outlier": false
+        }
+      ]
+    },
+    "example_cap_equality": {
+      "parameters": {
+        "decimals": 10,
+        "min_contributors": 2,
+        "coverage_ok_bps": 0,
+        "min_source_ratio_bps": 0,
+        "stale_factor": 2,
+        "oi_max_age_ms": 900000,
+        "price_max_skew_ms": 60000,
+        "outlier_k": 5,
+        "outlier_floor": 50000,
+        "max_weight_bps": 5000
+      },
+      "leaf": {
+        "value": 1500,
+        "dispersion": 500,
+        "source_count": 2,
+        "expected_source_count": 2,
+        "coverage_bps": 10000,
+        "outlier_count": 0,
+        "max_source_age_ms": 1000,
+        "status": "OK",
+        "median": 1000,
+        "mad": 500,
+        "tau": 50000,
+        "capped_count": 1,
+        "cap_weight": 1000,
+        "max_weight_share_bps": 5000,
+        "weights": {
+          "big": 1000,
+          "small": 1000
+        }
+      },
+      "venues": [
+        {
+          "venue": "big",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 3600000,
+          "units": 1000,
+          "hourly": 1000,
+          "settle_age": 1000,
+          "stale": false,
+          "oi_usd": 3000,
+          "oi_ages": [
+            1000
+          ],
+          "outlier": false
+        },
+        {
+          "venue": "small",
+          "valid_rate": true,
+          "valid_oi": true,
+          "eligible": true,
+          "interval_ms": 3600000,
+          "units": 2000,
+          "hourly": 2000,
+          "settle_age": 1000,
+          "stale": false,
+          "oi_usd": 1000,
+          "oi_ages": [
+            1000
+          ],
+          "outlier": false
+        }
+      ]
+    },
+    "invalid_parameters": "min_contributors=2 with max_weight_bps=3500 (7000 < 10000)",
+    "lexemes": {
+      "'100000' signed=False": "valid",
+      "'0.001' signed=False": "valid",
+      "'2900000000.75' signed=False": "valid",
+      "'-0.0001' signed=True": "valid",
+      "'-0.0001' signed=False": "invalid",
+      "'1e5' signed=False": "invalid",
+      "'+1' signed=True": "invalid",
+      "' 1' signed=False": "invalid",
+      "'1,000' signed=False": "invalid",
+      "'.5' signed=False": "invalid",
+      "'5.' signed=False": "invalid",
+      "'1111111111111111111111111' signed=False": "invalid",
+      "'0.1111111111111111111' signed=False": "invalid",
+      "'0.111111111111111111' signed=False": "valid",
+      "'12345678901234567.89' signed=False": "valid"
+    },
+    "integer_lexemes": {
+      "1789258140 s (time)": 1789258140000,
+      "1789258140000 ms (time)": 1789258140000,
+      "0001 ms (time)": 1,
+      "12345678901234567890 ms (time)": "invalid (integer lexeme or unit)",
+      "-1 ms (time)": "invalid (integer lexeme or unit)",
+      "1.0 s (time)": "invalid (integer lexeme or unit)",
+      "1e3 ms (time)": "invalid (integer lexeme or unit)",
+      "9223372036854775 s (time)": "9223372036854775000",
+      "9223372036854776 s (time)": "invalid (integer exceeds 2^63 - 1 after unit scaling)",
+      "1789258140 us (time)": "invalid (integer lexeme or unit)",
+      "8 h (interval)": 28800000,
+      "0 h (interval)": "invalid (interval outside [60000, 86400000] ms)",
+      "25 h (interval)": "invalid (interval outside [60000, 86400000] ms)",
+      "59999 ms (interval)": "invalid (interval outside [60000, 86400000] ms)",
+      "86400 s (interval)": 86400000,
+      "86401 s (interval)": "invalid (interval outside [60000, 86400000] ms)"
+    },
+    "rate_units": {
+      "0.0001 FRACTION": 1000000,
+      "0.01 PERCENT": 1000000,
+      "1 BPS": 1000000,
+      "-0.0375 PERCENT": -3750000
+    },
+    "parameter_cases": {
+      "proposed defaults": "valid",
+      "outlier_k = 10^100": "invalid",
+      "outlier_k = 1000": "valid",
+      "stale_factor = 1001": "invalid",
+      "outlier_floor = 2^62": "invalid",
+      "oi_max_age_ms = 604800001": "invalid",
+      "min_contributors = 65536": "invalid",
+      "outlier_k = true (bool)": "invalid",
+      "extra key": "invalid"
+    },
+    "exactness": {
+      "oi BASE 12345678901234567.89 x mark 1.5": "18518518351851851",
+      "binary64 float result (non-conformant)": "18518518351851852"
+    }
+  }
+}
