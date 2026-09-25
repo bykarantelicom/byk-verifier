@@ -3,7 +3,9 @@
 Verify ByKaranteli's on-chain data layer yourself: spec, TypeScript library, Python reference, vectors.
 
 The BYK Data Layer seals derived crypto market records (composite funding, aggregate open interest,
-five-minute liquidation totals, spot depth, Turkey and Kimchi premiums, derivatives pressure) into a
+five-minute liquidation totals and the largest print, spot depth, whale prints, flow toxicity, Turkey and
+Kimchi premiums, derivatives pressure, tokenized stocks, exchange insurance funds, venue withdrawal switches
+and two daily records; 116 records per epoch since catalog beta-0.4, 25 Sep 2026) into a
 Merkle root every five minutes, signs the manifest and writes the commitment to Solana, and once a day
 to Base through the Ethereum Attestation Service. Nothing here needs an account or an API key: the
 verifier reads the two chains and the public Proof API at https://bykaranteli.com/api/v1/proof.
