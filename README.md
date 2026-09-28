@@ -21,6 +21,7 @@ verifier reads the two chains and the public Proof API at https://bykaranteli.co
 | `python/byk_xcheck.py` | Cross-checks the Python reference against the vectors |
 | `vectors/byk_v1_test_vectors.json` | Test vectors (Section 17 of the spec) |
 | `byk-verify.mjs` | The one-file independent verifier (also served at https://bykaranteli.com/byk-verify.mjs) |
+| `examples/tamper.ts` | Reads one proof from the public Proof API, folds it to the signed root, then repeats with the value moved by one unit |
 
 ## Run the verifier
 
@@ -37,6 +38,18 @@ nothing (INCOMPLETE), never CANONICAL. A full run walks every epoch since genesi
 It reads the stream's genesis, authorization log and epoch manifests from the chains, recomputes the
 Merkle roots from the records the Proof API returns, and reports PASS, WARNING (a witness could not be
 enumerated completely) or FAIL per epoch. It never trusts a value it did not recompute.
+
+## Change one digit
+
+```
+npm install
+npx tsx examples/tamper.ts                       # BYK.FUNDING.COMPOSITE.B / BTC at the newest epoch
+npx tsx examples/tamper.ts BYK.OPEN_INTEREST.AGGREGATE.USD BTC
+```
+
+The untouched record folds up its audit path to the Merkle root inside the signed manifest (PASS). The same
+record with its value moved by one unit does not (FAIL): a published number cannot be changed afterwards
+without the proof showing it.
 
 ## Run the tests
 
