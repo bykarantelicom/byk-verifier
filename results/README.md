@@ -8,3 +8,4 @@ on the run that wrote it.
 | as of (UTC) | mode | verdict | sequences | head | Base witness | exit |
 |---|---|---|---|---|---|---|
 | 2026-10-18 14:59 | bootstrap (from the 20 Sep full run's sequence 631, ByKaranteli's server, Solana archive RPC) | PASS (resumed) | 8119 of 8119 CANONICAL | head 8750 | Base throttled | exit 0 |
+| 2026-10-18 15:09 | incremental | PASS (resumed) | 18 of 18 CANONICAL | head 8768 | Base incomplete | exit 0 |
