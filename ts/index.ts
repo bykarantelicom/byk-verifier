@@ -12,3 +12,4 @@ export * from "./witness";
 export * from "./funding-composite";
 export * from "./audit";
 export * from "./testkeys";
+export * from "./beta-profile";

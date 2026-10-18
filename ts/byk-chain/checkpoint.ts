@@ -21,8 +21,13 @@ export type CheckpointFile = {
   /** the authorization log head that run saw; a different head refuses the checkpoint */
   al_head?: { log_seq: string; entry_hash: string } | null;
   solana_slot?: number | null;
-  /** the last Base block that run scanned completely; the next run starts CHECKPOINT_BASE_REWIND blocks earlier */
+  /** range mode: the last Base block that run scanned completely; the next run starts CHECKPOINT_BASE_REWIND blocks earlier */
   base_scanned_to?: string | null;
+  /** windows mode (2026-10-18): the highest data sequence whose expected Base window that run walked completely; the next
+   *  run derives windows for the sequences after it */
+  base_windows_through?: string | null;
+  /** windows mode: the genesis and authorization-log windows were walked completely by that run (or one before it) */
+  base_fixed_windows?: boolean;
   as_of?: string;
   previous?: { sequence: string; commitment: string } | null;
 };
@@ -47,6 +52,8 @@ export function parseCheckpoint(text: string, streamHex: string, network: string
   if (cp.stream_id !== streamHex || cp.network !== network) throw new Error(`${label} belongs to stream ${String(cp.stream_id)} on ${String(cp.network)}, not to this run`);
   if (!DIGITS.test(String(cp.sequence)) || !HEX64.test(String(cp.commitment))) throw new Error(`${label}: sequence or commitment is malformed`);
   if (cp.base_scanned_to !== undefined && cp.base_scanned_to !== null && !DIGITS.test(String(cp.base_scanned_to))) throw new Error(`${label}: base_scanned_to is malformed`);
+  if (cp.base_windows_through !== undefined && cp.base_windows_through !== null && !DIGITS.test(String(cp.base_windows_through))) throw new Error(`${label}: base_windows_through is malformed`);
+  if (cp.base_fixed_windows !== undefined && typeof cp.base_fixed_windows !== "boolean") throw new Error(`${label}: base_fixed_windows is malformed`);
   if (cp.al_head !== undefined && cp.al_head !== null) {
     if (typeof cp.al_head !== "object" || !DIGITS.test(String(cp.al_head.log_seq)) || !HEX64.test(String(cp.al_head.entry_hash))) throw new Error(`${label}: al_head is malformed`);
   }
@@ -64,9 +71,15 @@ export function checkpointBaseFrom(cp: CheckpointFile, rewind = CHECKPOINT_BASE_
   return from > BigInt(0) ? from : BigInt(0);
 }
 
+/** Windows mode: the highest data sequence whose expected Base window the checkpoint's run walked, or -1 when it carries none
+ *  (then every due sequence the next run reads gets a window). */
+export function checkpointWindowsThrough(cp: CheckpointFile): bigint {
+  return cp.base_windows_through === undefined || cp.base_windows_through === null ? BigInt(-1) : BigInt(cp.base_windows_through);
+}
+
 /** null when the log head the checkpoint recorded is the one read now (or when it recorded none), otherwise the refusal. */
 export function alHeadChanged(cp: CheckpointFile, head: { logSeq: bigint; entryHash: Bytes }): string | null {
   if (cp.al_head === undefined || cp.al_head === null) return null;
   const same = cp.al_head.log_seq === head.logSeq.toString() && cp.al_head.entry_hash.replace(/^0x/i, "").toLowerCase() === toHex(head.entryHash);
-  return same ? null : `the authorization log read now differs from the one the checkpoint recorded (head ${cp.al_head.log_seq} then, ${head.logSeq} now): either governance acted since, which can change what earlier sequences resolve to, or this resumed run's bounded Base scan could not see a log entry anchored only on Base; run a full verification without --checkpoint`;
+  return same ? null : `the authorization log read now differs from the one the checkpoint recorded (head ${cp.al_head.log_seq} then, ${head.logSeq} now): either governance acted since, which can change what earlier sequences resolve to, or this resumed run's bounded Base scan could not see a log entry anchored only on Base; run a full verification without --checkpoint (with --base-scan range on an endpoint that allows thousands of blocks per call if the entry may be on Base only, since windows mode cannot see a copy without a Solana twin)`;
 }

@@ -1,8 +1,9 @@
 // BYK Data Layer · independent verifier, one file, Node.js 20 or newer.
 // Reads only the Solana and Base chains: no ByKaranteli API, no database. Pin the stream id and run
 //   node byk-verify.mjs --stream <64 hex stream id> --network mainnet
-// Options: --to <sequence>  --solana-rpc <url>  --base-rpc <url>  --base-from-block <n>  --no-base  --json
-//          --checkpoint <file>  --checkpoint-out <file>  --help   (SOLANA_RPC_URL and BASE_RPC_URL are read too)
+// Options: --to <sequence>  --solana-rpc <url>  --base-rpc <url>  --base-scan windows|range  --base-from-block <n>
+//          --base-extension-hours <h>  --no-base  --json  --checkpoint <file>  --checkpoint-out <file>  --help
+//          (SOLANA_RPC_URL and BASE_RPC_URL are read too)
 // Bundled, unminified, from ByKaranteli's src/scripts/byk-verify.ts with viem and @solana/web3.js; their
 // licences are at the end of this file. Protocol: BYK Data Layer v1.0.0-rc6. https://bykaranteli.com/proof
 import { createRequire as __bykCreateRequire } from "node:module";
@@ -44117,6 +44118,16 @@ var PARAM_BOUNDS = {
   outlier_floor: [B0, HOURLY_MAX]
 };
 
+// src/lib/byk/beta-profile.ts
+var DAY_MS = BigInt(864e5);
+var BASE_PLAN_HORIZON_MS = BigInt(3) * DAY_MS;
+function baseAnchorDue(sequence, startMs, endMs) {
+  return sequence === BigInt(0) || endMs % DAY_MS === BigInt(0) || endMs / DAY_MS > startMs / DAY_MS;
+}
+function baseCopyPlanned(sequence, startMs, endMs, plannedAtMs) {
+  return sequence === BigInt(0) || endMs > plannedAtMs - BASE_PLAN_HORIZON_MS && baseAnchorDue(sequence, startMs, endMs);
+}
+
 // node_modules/viem/_esm/index.js
 init_exports();
 
@@ -55495,8 +55506,19 @@ function baseClients(n, privateKeyHex) {
 async function assertBaseNetwork(client, n) {
   if (BigInt(await client.getChainId()) !== n.chainId) throw new Error("RPC endpoint is not the chain named in the genesis core");
 }
-var RANGE_REFUSAL = /limited to (?:an?\s+)?([\d,_]+)\s*(?:blocks?)?\s*range|block range (?:is )?too (?:large|wide)|range exceeds|exceeds? the maximum|up to ([\d,_]+) blocks|(?:returned |than )([\d,_]+) results/i;
-var MIN_LOG_CHUNK = BigInt(199);
+function admissibleEasAttestation(a, schemaUids, streamId, log) {
+  const schema = SCHEMAS[schemaUids.indexOf(a.schema)];
+  if (!schema || a.expirationTime !== BigInt(0) || a.revocable !== false || a.refUID !== ZERO_BYTES32) return null;
+  const payload = parseEasData(schema, fromHex(a.data));
+  const key = payload ? witnessKeyOf(payload, streamId) : null;
+  if (!payload || !key) return null;
+  if (hex(key.subarray(12)).toLowerCase() !== a.recipient.toLowerCase()) return null;
+  return { key, anchor: { uid: a.uid, txHash: log.transactionHash ?? "", blockNumber: log.blockNumber ?? BigInt(0), timeSec: Number(a.time), attester: a.attester, payload } };
+}
+var RANGE_REFUSAL = /limited to .*range|block range (?:is )?too (?:large|wide)|block range limit|max(?:imum)? (?:block )?range|range (?:is )?(?:too (?:large|wide)|exceeds|over)|exceeds? (?:the )?max|up to (?:an?\s+)?[\d,_]+\s*[kK]?\s*blocks?|maximum allowed is [\d,_]+|over (?:the )?limit of [\d,_]+|(?:returned |than )[\d,_]+ results/i;
+var RANGE_REFUSAL_WITH_NUMBER = /invalid block range/i;
+var STATED_BLOCK_LIMIT = /(?:limited to (?:an?\s+)?(?:\d+\s*-\s*)?|up to (?:an?\s+)?|maximum allowed is |over (?:the )?limit of |max(?:imum)? (?:block )?range(?: is|:| of)? |max(?:imum)? )([\d,_]+)\s*([kK])?(?![\w])/i;
+var MIN_LOG_CHUNK = BigInt(9);
 var DEFAULT_LOG_CHUNK = BigInt(1999);
 var MAX_LOG_CHUNK = BigInt(9999);
 var GROW_AFTER_SUCCESSES = 2;
@@ -55505,127 +55527,304 @@ function nextChunkAfterSuccess(span, successes, ceiling) {
   const grown = span * BigInt(2) + BigInt(1);
   return grown > ceiling ? ceiling : grown;
 }
-var RATE_LIMIT = /rate limit|request limit|too many requests|429|throttl|quota/i;
-var PAUSE_BETWEEN_CHUNKS_MS = 150;
+var RATE_LIMIT = /rate limit|request limit|too many requests|throttl|quota|compute units|per second|capacity|status: 429\b/i;
+var messageOf = (err) => err instanceof Error ? err.message : String(err);
+var wordsOf = (message) => message.replace(/^(?:URL|Request body):.*$/gm, "");
+function rateLimited(err) {
+  const e = err;
+  for (let o = e, depth = 0; o && typeof o === "object" && depth < 4; o = o.cause, depth++) {
+    if (o.code === 429 || o.code === -32005 || o.status === 429) return true;
+  }
+  return RATE_LIMIT.test(wordsOf(messageOf(err)));
+}
+var PAUSE_BETWEEN_CALLS_MS = 150;
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-function chunkFromRangeRefusal(message, current) {
-  const m = RANGE_REFUSAL.exec(message);
-  if (!m) return null;
-  const stated = [m[1], m[2], m[3]].find(Boolean);
-  const n = stated ? BigInt(stated.replace(/[,_]/g, "")) : BigInt(0);
-  const next = n > BigInt(0) ? n - BigInt(1) : current / BigInt(2);
-  return next < MIN_LOG_CHUNK ? MIN_LOG_CHUNK : next < current ? next : current / BigInt(2);
+function chunkFromRangeRefusal(rawMessage, current) {
+  const message = wordsOf(rawMessage);
+  const m = STATED_BLOCK_LIMIT.exec(message);
+  if (!RANGE_REFUSAL.test(message) && !(m && RANGE_REFUSAL_WITH_NUMBER.test(message))) return null;
+  const n = m ? BigInt(m[1].replace(/[,_]/g, "")) * (m[2] ? BigInt(1e3) : BigInt(1)) : BigInt(0);
+  const stated = n > BigInt(0) ? n - BigInt(1) : null;
+  const next = stated !== null && stated < current ? stated : current / BigInt(2);
+  return next < MIN_LOG_CHUNK ? MIN_LOG_CHUNK : next;
 }
 async function assertBaseRpc(n) {
   const { publicClient } = baseClients(n);
   await assertBaseNetwork(publicClient, n);
 }
-async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
+function groupHits(hits) {
+  const byWitnessKey = /* @__PURE__ */ new Map();
+  for (const h of hits) {
+    const list = byWitnessKey.get(h.key) ?? [];
+    list.push(h.anchor);
+    byWitnessKey.set(h.key, list);
+  }
+  return byWitnessKey;
+}
+function makeWalker(n, streamId, opts) {
   const maxCalls = opts.maxCalls ?? 1500;
   const waitMs = opts.rateLimitWaitMs ?? 2e3;
   const maxWaits = opts.maxRateLimitWaits ?? 8;
   const { publicClient } = baseClients(n);
-  const latest = (await publicClient.getBlock({ blockTag: "latest" })).number;
   const uids = SCHEMAS.map((schema) => hex(easSchemaUid(schema)));
-  const byWitnessKey = /* @__PURE__ */ new Map();
-  let inadmissible = 0;
-  let span = opts.chunk ?? DEFAULT_LOG_CHUNK;
-  let ceiling = MAX_LOG_CHUNK;
-  let successes = 0;
-  let calls = 0;
-  let complete = true;
-  let stopReason = null;
-  let rateLimitWaits = 0;
-  const start = fromBlock < BigInt(0) ? BigInt(0) : fromBlock;
-  let covered = start - BigInt(1);
-  const readBack = async (uid2) => {
+  const maxErrorRetries = opts.maxErrorRetries ?? 3;
+  const state = { span: opts.chunk ?? DEFAULT_LOG_CHUNK, ceiling: MAX_LOG_CHUNK, successes: 0, calls: 0, reads: 0, inadmissible: 0, rateLimitWaits: 0, errorRetries: 0, stopReason: null };
+  const paced = async () => {
+    if (state.calls + state.reads > 0) await sleep(PAUSE_BETWEEN_CALLS_MS);
+  };
+  const read = async (fn) => {
     for (; ; ) {
       try {
-        const read = await publicClient.readContract({ address: hex(n.easAddress), abi: easAbi, functionName: "getAttestation", args: [uid2] });
-        rateLimitWaits = 0;
-        return read;
+        await paced();
+        state.reads++;
+        const out = await fn();
+        state.rateLimitWaits = 0;
+        state.errorRetries = 0;
+        return out;
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (!RATE_LIMIT.test(message)) throw err;
-        if (rateLimitWaits < maxWaits) {
-          rateLimitWaits++;
-          await sleep(waitMs * rateLimitWaits);
+        if (rateLimited(err)) {
+          if (state.rateLimitWaits < maxWaits) {
+            state.rateLimitWaits++;
+            await sleep(waitMs * state.rateLimitWaits);
+            continue;
+          }
+          return null;
+        }
+        if (state.errorRetries < maxErrorRetries) {
+          state.errorRetries++;
+          await sleep(waitMs * state.errorRetries);
           continue;
         }
-        return null;
+        throw err;
       }
     }
   };
-  for (let from15 = start; from15 <= latest; ) {
-    const to = from15 + span > latest ? latest : from15 + span;
-    if (calls >= maxCalls) {
-      complete = false;
-      stopReason = "max_calls";
-      break;
-    }
-    let logs;
-    try {
-      calls++;
-      logs = await publicClient.getLogs({ address: hex(n.easAddress), event: attestedEvent, args: { schemaUID: uids }, fromBlock: from15, toBlock: to });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const next = chunkFromRangeRefusal(message, span);
-      if (next !== null && next < span) {
-        ceiling = next;
-        span = next;
-        successes = 0;
-        continue;
+  const readBack = (uid2) => read(() => publicClient.readContract({ address: hex(n.easAddress), abi: easAbi, functionName: "getAttestation", args: [uid2] }));
+  async function walk3(from15, to, recipient) {
+    const hits = [];
+    let covered = from15 - BigInt(1);
+    if (state.stopReason !== null) return { covered, hits, stopped: true, error: null };
+    for (let at = from15; at <= to; ) {
+      const end = at + state.span > to ? to : at + state.span;
+      if (state.calls >= maxCalls) {
+        state.stopReason = "max_calls";
+        return { covered, hits, stopped: true, error: null };
       }
-      if (RATE_LIMIT.test(message)) {
-        if (rateLimitWaits < maxWaits) {
-          rateLimitWaits++;
-          await sleep(waitMs * rateLimitWaits);
+      let logs;
+      try {
+        await paced();
+        state.calls++;
+        logs = await publicClient.getLogs({ address: hex(n.easAddress), event: attestedEvent, args: recipient ? { recipient, schemaUID: uids } : { schemaUID: uids }, fromBlock: at, toBlock: end });
+      } catch (err) {
+        if (rateLimited(err)) {
+          if (state.rateLimitWaits < maxWaits) {
+            state.rateLimitWaits++;
+            await sleep(waitMs * state.rateLimitWaits);
+            continue;
+          }
+          state.stopReason = "rate_limited";
+          return { covered, hits, stopped: true, error: null };
+        }
+        const next = chunkFromRangeRefusal(messageOf(err), state.span);
+        if (next !== null && next < state.span) {
+          state.ceiling = next;
+          state.span = next;
+          state.successes = 0;
           continue;
         }
-        complete = false;
-        stopReason = "rate_limited";
-        break;
+        if (state.errorRetries < maxErrorRetries) {
+          state.errorRetries++;
+          await sleep(waitMs * state.errorRetries);
+          continue;
+        }
+        state.stopReason = "error";
+        return { covered, hits, stopped: true, error: err };
       }
-      throw err;
+      for (const l of logs) {
+        let a;
+        try {
+          a = await readBack(l.args.uid);
+        } catch (err) {
+          state.stopReason = "error";
+          return { covered, hits, stopped: true, error: err };
+        }
+        if (a === null) {
+          state.stopReason = "rate_limited";
+          return { covered, hits, stopped: true, error: null };
+        }
+        const admissible = admissibleEasAttestation(a, uids, streamId, l);
+        if (!admissible) {
+          state.inadmissible++;
+          continue;
+        }
+        hits.push({ key: toHex(admissible.key), anchor: admissible.anchor });
+      }
+      if (end - at === state.span) {
+        state.successes++;
+        state.span = nextChunkAfterSuccess(state.span, state.successes, state.ceiling);
+      }
+      state.rateLimitWaits = 0;
+      state.errorRetries = 0;
+      covered = end;
+      at = end + BigInt(1);
     }
-    let throttledOut = false;
-    for (const l of logs) {
-      const a = await readBack(l.args.uid);
-      if (a === null) {
-        throttledOut = true;
-        break;
-      }
-      const schema = SCHEMAS[uids.indexOf(a.schema)];
-      const payload = schema && a.expirationTime === BigInt(0) && a.revocable === false && a.refUID === ZERO_BYTES32 ? parseEasData(schema, fromHex(a.data)) : null;
-      const key = payload ? witnessKeyOf(payload, streamId) : null;
-      if (!payload || !key) continue;
-      if (hex(key.subarray(12)).toLowerCase() !== a.recipient.toLowerCase()) {
-        inadmissible++;
-        continue;
-      }
-      const list = byWitnessKey.get(toHex(key)) ?? [];
-      list.push({ uid: a.uid, txHash: l.transactionHash ?? "", blockNumber: l.blockNumber ?? BigInt(0), timeSec: Number(a.time), attester: a.attester, payload });
-      byWitnessKey.set(toHex(key), list);
+    return { covered, hits, stopped: false, error: null };
+  }
+  const budgetLeft = () => state.calls < maxCalls;
+  return { walk: walk3, read, budgetLeft, state, publicClient };
+}
+async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
+  const w = makeWalker(n, streamId, opts);
+  const start = fromBlock < BigInt(0) ? BigInt(0) : fromBlock;
+  const latest = await w.read(() => w.publicClient.getBlock({ blockTag: "latest" }));
+  if (latest === null) w.state.stopReason = "rate_limited";
+  const r = latest === null ? { hits: [], covered: start - BigInt(1), stopped: true, error: null } : await w.walk(start, latest.number);
+  if (r.error !== null) throw r.error;
+  return { byWitnessKey: groupHits(r.hits), inadmissible: w.state.inadmissible, scannedFrom: start, scannedTo: r.covered, latestBlock: latest?.number ?? BigInt(-1), latestTimeMs: latest ? latest.timestamp * BigInt(1e3) : BigInt(-1), chunkUsed: w.state.span, calls: w.state.calls, complete: !r.stopped, stopReason: w.state.stopReason };
+}
+var WINDOW_BEFORE_MS = BigInt(12e4);
+var FIXED_WINDOW_BEFORE_MS = BigInt(18e5);
+var WINDOW_AFTER_MS = BigInt(9e5);
+var WINDOW_EXTENSION_MS = BigInt(216e5);
+var BASE_BLOCK_MS = BigInt(2e3);
+var WINDOWS_MAX_CALLS = 2e4;
+function blockNumberAt(latest, timeMs, blockMs = BASE_BLOCK_MS) {
+  const latestMs = latest.timestamp * BigInt(1e3);
+  const behind = timeMs < latestMs ? (latestMs - timeMs) / blockMs : BigInt(0);
+  const b = latest.number - behind;
+  return b < BigInt(0) ? BigInt(0) : b;
+}
+var copyKey = (x) => `${x.kind}:${x.n.toString()}`;
+function summariseCopies(specs, windows) {
+  const order = [];
+  const byCopy = /* @__PURE__ */ new Map();
+  for (const spec of specs) {
+    const k = copyKey(spec);
+    if (!byCopy.has(k)) {
+      byCopy.set(k, []);
+      order.push(k);
     }
-    if (throttledOut) {
-      complete = false;
-      stopReason = "rate_limited";
+  }
+  for (const w of windows) byCopy.get(copyKey(w)).push(w);
+  return order.map((k) => {
+    const ws = byCopy.get(k);
+    const found = ws.reduce((m, w) => m + w.found, 0);
+    const status = found > 0 ? "found" : ws.some((w) => w.status === "not_walked") ? "not_walked" : ws.some((w) => w.status === "open") ? "open" : "missing";
+    const [kind, n] = k.split(":");
+    return { kind, n, status, windows: ws.length, found };
+  });
+}
+async function scanWitnessWindows(n, streamId, specs, opts = {}) {
+  const w = makeWalker(n, streamId, { ...opts, maxCalls: opts.maxCalls ?? WINDOWS_MAX_CALLS });
+  const after = opts.afterMs ?? WINDOW_AFTER_MS;
+  const extension = opts.extensionMs ?? WINDOW_EXTENSION_MS;
+  const maxExtensions = opts.maxExtensions ?? Number.POSITIVE_INFINITY;
+  const windows = [];
+  const hits = [];
+  const notWalkedRest = (fromIndex) => {
+    for (const rest of specs.slice(fromIndex)) windows.push({ kind: rest.kind, n: rest.n.toString(), from: null, to: null, found: 0, calls: 0, extended: false, status: "not_walked" });
+  };
+  let error = null;
+  let driftRejected = null;
+  const finish = (latestBlock, driftBlocks2) => {
+    const copies = summariseCopies(specs, windows);
+    const count = (st) => copies.filter((c) => c.status === st).length;
+    return { byWitnessKey: groupHits(hits), inadmissible: w.state.inadmissible, windows, copies, found: count("found"), missing: count("missing"), open: count("open"), notWalked: count("not_walked"), calls: w.state.calls, chunkUsed: w.state.span, complete: windows.every((x) => x.status !== "not_walked") && w.state.stopReason === null, stopReason: w.state.stopReason, error, latestBlock, driftBlocks: driftBlocks2, driftRejected };
+  };
+  const stoppedEarly = (reason, err, latestBlock, fromIndex, driftBlocks2) => {
+    if (err !== null) error = messageOf(err);
+    w.state.stopReason = reason;
+    notWalkedRest(fromIndex);
+    return finish(latestBlock, driftBlocks2);
+  };
+  const readOrStop = async (which, latestBlock, fromIndex, driftBlocks2) => {
+    try {
+      const block = await w.read(() => w.publicClient.getBlock(which));
+      return block === null ? { stop: stoppedEarly("rate_limited", null, latestBlock, fromIndex, driftBlocks2) } : { block };
+    } catch (err) {
+      return { stop: stoppedEarly("error", err, latestBlock, fromIndex, driftBlocks2) };
+    }
+  };
+  const latest = await readOrStop({ blockTag: "latest" }, BigInt(-1), 0, BigInt(0));
+  if ("stop" in latest) return latest.stop;
+  const head = latest.block;
+  const latestMs = head.timestamp * BigInt(1e3);
+  let driftBlocks = BigInt(0);
+  const clamp = (b) => b < BigInt(0) ? BigInt(0) : b > head.number ? head.number : b;
+  const blockAt = (ms, drift = BigInt(0)) => clamp(blockNumberAt(head, ms) - drift);
+  const foundCopies = /* @__PURE__ */ new Set();
+  const lastIndexOfCopy = /* @__PURE__ */ new Map();
+  for (const [i, x] of specs.entries()) lastIndexOfCopy.set(copyKey(x), i);
+  let extensions = 0;
+  for (const [index2, spec] of specs.entries()) {
+    const fromMs = spec.atMs - (spec.beforeMs ?? opts.beforeMs ?? WINDOW_BEFORE_MS);
+    const toMs = (spec.untilMs ?? spec.atMs) + after;
+    let open = toMs > latestMs;
+    if (w.state.stopReason !== null || !w.budgetLeft()) {
+      if (w.state.stopReason === null) w.state.stopReason = "max_calls";
+      notWalkedRest(index2);
       break;
     }
-    successes++;
-    rateLimitWaits = 0;
-    covered = to;
-    span = nextChunkAfterSuccess(span, successes, ceiling);
-    from15 = to + BigInt(1);
-    if (from15 <= latest) await sleep(PAUSE_BETWEEN_CHUNKS_MS);
+    if (foundCopies.has(copyKey(spec))) {
+      windows.push({ kind: spec.kind, n: spec.n.toString(), from: blockAt(fromMs).toString(), to: (open ? head.number : blockAt(toMs)).toString(), found: 0, calls: 0, extended: false, status: "found" });
+      continue;
+    }
+    let drift = BigInt(0);
+    const guess = blockAt(fromMs);
+    if (guess < head.number) {
+      const probe = await readOrStop({ blockNumber: guess }, head.number, index2, driftBlocks);
+      if ("stop" in probe) return probe.stop;
+      const measured = (probe.block.timestamp * BigInt(1e3) - fromMs) / BASE_BLOCK_MS;
+      if (measured > BigInt(-1800) && measured < BigInt(1800)) drift = measured;
+      else driftRejected = measured;
+      if ((drift < BigInt(0) ? -drift : drift) > (driftBlocks < BigInt(0) ? -driftBlocks : driftBlocks)) driftBlocks = drift;
+    }
+    const from15 = blockAt(fromMs, drift);
+    const to = open ? head.number : blockAt(toMs, drift);
+    const recipient = hex(spec.key.subarray(12));
+    const keyHex = toHex(spec.key);
+    const callsBefore = w.state.calls;
+    let found = 0;
+    let stopped = false;
+    let end = to;
+    let extended = false;
+    let extensionSkipped = false;
+    const part = async (partFrom, partTo) => {
+      const r = await w.walk(partFrom, partTo, recipient);
+      hits.push(...r.hits);
+      found += r.hits.filter((h) => h.key === keyHex).length;
+      stopped = r.stopped;
+      end = stopped ? r.covered : partTo;
+      if (r.error !== null) error = messageOf(r.error);
+    };
+    const lastWindowOfCopy = lastIndexOfCopy.get(copyKey(spec)) === index2;
+    await part(from15, to);
+    if (!stopped && found === 0 && !open && lastWindowOfCopy) {
+      const extToMs = toMs + extension;
+      const extTo = blockAt(extToMs, drift);
+      if (extTo > to) {
+        if (extensions < maxExtensions) {
+          extensions++;
+          extended = true;
+          await part(to + BigInt(1), extTo);
+        } else extensionSkipped = true;
+      }
+      if (found === 0 && !stopped && extToMs > latestMs) open = true;
+    }
+    const status = found > 0 ? "found" : stopped || extensionSkipped ? "not_walked" : open ? "open" : "missing";
+    if (found > 0) foundCopies.add(copyKey(spec));
+    windows.push({ kind: spec.kind, n: spec.n.toString(), from: from15.toString(), to: end.toString(), found, calls: w.state.calls - callsBefore, extended, status });
+    if (error !== null) {
+      notWalkedRest(index2 + 1);
+      break;
+    }
   }
-  return { byWitnessKey, inadmissible, scannedFrom: start, scannedTo: covered, chunkUsed: span, calls, complete, stopReason };
+  return finish(head.number, driftBlocks);
 }
 async function blockAtOrBefore(n, timeMs, marginBlocks = BigInt(900)) {
   const { publicClient } = baseClients(n);
   const latest = await publicClient.getBlock({ blockTag: "latest" });
-  const behind = (latest.timestamp * BigInt(1e3) - timeMs) / BigInt(2e3);
-  const guess = latest.number - (behind > BigInt(0) ? behind : BigInt(0)) - marginBlocks;
+  const guess = blockNumberAt(latest, timeMs) - marginBlocks;
   return guess > BigInt(0) ? guess : BigInt(0);
 }
 
@@ -55645,6 +55844,8 @@ function parseCheckpoint(text, streamHex, network, label = "--checkpoint") {
   if (cp.stream_id !== streamHex || cp.network !== network) throw new Error(`${label} belongs to stream ${String(cp.stream_id)} on ${String(cp.network)}, not to this run`);
   if (!DIGITS.test(String(cp.sequence)) || !HEX64.test(String(cp.commitment))) throw new Error(`${label}: sequence or commitment is malformed`);
   if (cp.base_scanned_to !== void 0 && cp.base_scanned_to !== null && !DIGITS.test(String(cp.base_scanned_to))) throw new Error(`${label}: base_scanned_to is malformed`);
+  if (cp.base_windows_through !== void 0 && cp.base_windows_through !== null && !DIGITS.test(String(cp.base_windows_through))) throw new Error(`${label}: base_windows_through is malformed`);
+  if (cp.base_fixed_windows !== void 0 && typeof cp.base_fixed_windows !== "boolean") throw new Error(`${label}: base_fixed_windows is malformed`);
   if (cp.al_head !== void 0 && cp.al_head !== null) {
     if (typeof cp.al_head !== "object" || !DIGITS.test(String(cp.al_head.log_seq)) || !HEX64.test(String(cp.al_head.entry_hash))) throw new Error(`${label}: al_head is malformed`);
   }
@@ -55658,10 +55859,37 @@ function checkpointBaseFrom(cp, rewind = CHECKPOINT_BASE_REWIND) {
   const from15 = BigInt(cp.base_scanned_to) - rewind;
   return from15 > BigInt(0) ? from15 : BigInt(0);
 }
+function checkpointWindowsThrough(cp) {
+  return cp.base_windows_through === void 0 || cp.base_windows_through === null ? BigInt(-1) : BigInt(cp.base_windows_through);
+}
 function alHeadChanged(cp, head) {
   if (cp.al_head === void 0 || cp.al_head === null) return null;
   const same = cp.al_head.log_seq === head.logSeq.toString() && cp.al_head.entry_hash.replace(/^0x/i, "").toLowerCase() === toHex(head.entryHash);
-  return same ? null : `the authorization log read now differs from the one the checkpoint recorded (head ${cp.al_head.log_seq} then, ${head.logSeq} now): either governance acted since, which can change what earlier sequences resolve to, or this resumed run's bounded Base scan could not see a log entry anchored only on Base; run a full verification without --checkpoint`;
+  return same ? null : `the authorization log read now differs from the one the checkpoint recorded (head ${cp.al_head.log_seq} then, ${head.logSeq} now): either governance acted since, which can change what earlier sequences resolve to, or this resumed run's bounded Base scan could not see a log entry anchored only on Base; run a full verification without --checkpoint (with --base-scan range on an endpoint that allows thousands of blocks per call if the entry may be on Base only, since windows mode cannot see a copy without a Solana twin)`;
+}
+
+// src/lib/byk-chain/redact.ts
+var URL_IN_TEXT = /\b((?:https?|wss?):\/\/)([^\s"'<>`)[\]]+)/gi;
+var MARKER = "[redacted]";
+function redactUrls(text) {
+  return text.replace(URL_IN_TEXT, (m, scheme, rest, offset, whole) => {
+    if (whole.startsWith(MARKER, offset + m.length)) return m;
+    const end = rest.search(/[/?#]/);
+    const authority = end >= 0 ? rest.slice(0, end) : rest;
+    const host = authority.includes("@") ? authority.slice(authority.lastIndexOf("@") + 1) : authority;
+    const cut = authority !== host || end >= 0 && rest.length > end + 1;
+    return cut ? `${scheme}${host}/${MARKER}` : `${scheme}${host}`;
+  });
+}
+function endpointHost(url) {
+  try {
+    return new URL(url).host;
+  } catch {
+    return redactUrls(url);
+  }
+}
+function oneLine(text, max = 200) {
+  return redactUrls(text).replace(/\s+/g, " ").trim().slice(0, max);
 }
 
 // src/lib/byk-chain/solana.ts
@@ -55720,6 +55948,44 @@ async function assertSolanaNetwork(conn, solanaGenesisHash) {
 }
 var witnessAddress = (witnessKey2) => base58Encode(witnessKey2);
 
+// src/lib/byk-chain/windows.ts
+var sec = (t) => BigInt(Math.trunc(t)) * BigInt(1e3);
+var walked = (c) => c.status === "found" || c.status === "missing";
+function dataCopyWindows(key, sequence, window2, blockTimesSec) {
+  const solMin = blockTimesSec.length ? sec(Math.min(...blockTimesSec)) : null;
+  const solMax = blockTimesSec.length ? sec(Math.max(...blockTimesSec)) : null;
+  const plannedAt = solMin !== null ? solMin - FIXED_WINDOW_BEFORE_MS : window2.epochEndMs;
+  if (!baseCopyPlanned(sequence, window2.epochStartMs, window2.epochEndMs, plannedAt)) return [];
+  const atMs = solMin !== null && solMin < window2.epochEndMs ? solMin : window2.epochEndMs;
+  const untilMs = solMax !== null && solMax > window2.epochEndMs ? solMax : window2.epochEndMs;
+  return [{ key, kind: "data", n: sequence, atMs, untilMs }];
+}
+function fixedCopyWindow(key, kind, n, blockTimesSec) {
+  if (blockTimesSec.length === 0) return null;
+  return { key, kind, n, atMs: sec(Math.min(...blockTimesSec)), untilMs: sec(Math.max(...blockTimesSec)), beforeMs: FIXED_WINDOW_BEFORE_MS };
+}
+function checkpointSequence(head, seedSequence, copies) {
+  const pending = (copies ?? []).filter((c) => c.kind === "data" && (c.status === "open" || c.status === "not_walked")).map((c) => BigInt(c.n));
+  if (pending.length === 0) return { sequence: head, heldBy: null };
+  const heldBy = pending.reduce((m, n) => n < m ? n : m);
+  let sequence = heldBy - BigInt(1);
+  if (seedSequence !== null && sequence < seedSequence) sequence = seedSequence;
+  return { sequence, heldBy };
+}
+function windowsMarks(a) {
+  let through = BigInt(-1);
+  let fixed = a.fixedBefore;
+  if (a.rangeCovered !== null) {
+    through = a.rangeCovered.through > a.cpSequence ? a.cpSequence : a.rangeCovered.through;
+    fixed = a.fixedBefore || a.rangeCovered.fixed;
+  } else if (a.copies) {
+    const highest = a.copies.filter((c) => c.kind === "data" && walked(c)).reduce((m, c) => BigInt(c.n) > m ? BigInt(c.n) : m, BigInt(-1));
+    through = highest > a.cpSequence ? a.cpSequence : highest;
+    fixed = a.fixedBefore ? true : a.unplacedFixed === 0 && a.copies.filter((c) => c.kind !== "data").every(walked);
+  }
+  return { through: through > a.throughBefore ? through : a.throughBefore, fixed };
+}
+
 // src/scripts/byk-verify.ts
 function arg(name) {
   const i = process.argv.indexOf(`--${name}`);
@@ -55731,7 +55997,16 @@ var USAGE = `byk-verify: independent verifier of a BYK Data Layer stream (reads 
   node byk-verify.mjs --stream <64 hex stream id> [--network mainnet|devnet] [--to <sequence>] [--json]
     --solana-rpc <url>        archive endpoint (default https://api.mainnet-beta.solana.com, or SOLANA_RPC_URL)
     --base-rpc <url>          Base endpoint (default https://mainnet.base.org, or BASE_RPC_URL)
-    --base-from-block <n>     first Base block to scan (default: the genesis time, or the checkpoint's last scanned block)
+    --base-scan windows|range windows (default): each expected Base copy is looked for in a short block range around the
+                              time the engine sent it (the end of the manifest's window, the Solana anchor's time for the
+                              genesis core and a log entry), about fifty calls a copy on a free endpoint that caps
+                              eth_getLogs at ten blocks (a copy with no Solana twin is invisible to this mode, and the
+                              genesis core must be on the Solana endpoint: an archive one); range: one pass over every
+                              block since genesis (or the checkpoint, or --base-from-block), the full enumeration, for an
+                              endpoint that allows thousands of blocks per call
+    --base-from-block <n>     first Base block of a range scan (default: the genesis time, or the checkpoint's last scanned block)
+    --base-extension-hours <h> windows mode: how far beyond its window a copy that is not there is looked for (default 6;
+                              a periodic full run may pass 24 to settle a copy the daily runs reported MISSING)
     --no-base                 skip the Base witness (the verdict rests on Solana under the beta profile)
     --checkpoint <file>       continue from a checkpoint written by an earlier run (--checkpoint-out)
     --checkpoint-out <file>   after a run that passed, write the last CANONICAL sequence for the next run
@@ -55749,6 +56024,7 @@ function politeFetch(minGapMs = 125, maxTries = 8) {
     }
   };
 }
+var errorText = (err) => redactUrls(messageOf(err));
 async function main() {
   if (has("help")) {
     console.log(USAGE);
@@ -55762,6 +56038,16 @@ async function main() {
   const solRpc = arg("solana-rpc") ?? (mainnet ? process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com" : SOLANA_DEVNET_RPC);
   const baseNet = { chainId: mainnet ? BASE_MAINNET_CHAIN_ID : BASE_SEPOLIA_CHAIN_ID, rpcUrl: arg("base-rpc") ?? (mainnet ? process.env.BASE_RPC_URL ?? BASE_MAINNET_RPC : BASE_SEPOLIA_RPC), easAddress: fromHex(BASE_EAS_ADDRESS_HEX) };
   const useBase = !has("no-base");
+  const baseFromFlag = arg("base-from-block");
+  if (baseFromFlag !== void 0 && !/^\d+$/.test(baseFromFlag)) throw new Error("--base-from-block takes a block number");
+  const baseScanArg = arg("base-scan");
+  if (baseScanArg !== void 0 && baseScanArg !== "windows" && baseScanArg !== "range") throw new Error("--base-scan takes windows or range");
+  if (baseScanArg === "windows" && baseFromFlag !== void 0) throw new Error("--base-from-block belongs to range mode: drop it or pass --base-scan range");
+  const baseMode = baseScanArg ?? (baseFromFlag !== void 0 ? "range" : "windows");
+  const extensionArg = arg("base-extension-hours");
+  if (extensionArg !== void 0 && !/^\d{1,3}$/.test(extensionArg)) throw new Error("--base-extension-hours takes a whole number of hours");
+  if (extensionArg !== void 0 && baseMode === "range") throw new Error("--base-extension-hours belongs to windows mode: range mode reads every block and extends nothing");
+  const extensionMs = extensionArg !== void 0 ? BigInt(extensionArg) * BigInt(36e5) : WINDOW_EXTENSION_MS;
   const json = has("json");
   const cpPath = arg("checkpoint");
   let cpText = null;
@@ -55769,7 +56055,7 @@ async function main() {
     try {
       cpText = readFileSync(cpPath, "utf8");
     } catch (err) {
-      throw new Error(`--checkpoint ${cpPath} could not be read: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(`--checkpoint ${cpPath} could not be read: ${messageOf(err)}`);
     }
   }
   const cp = cpText !== null ? parseCheckpoint(cpText, streamHex, network, `--checkpoint ${cpPath}`) : null;
@@ -55788,25 +56074,29 @@ async function main() {
   incomplete ||= !gSol.complete;
   const solCore = gSol.anchors.map((a) => a.payload).find((p) => p.kind === "genesis" && equal(keccak256(p.core), streamId));
   const sinceMs = solCore && solCore.kind === "genesis" ? parseGenesisCore(solCore.core).genesisEpochStartMs : BigInt(Date.now() - 2 * 864e5);
-  const baseFromFlag = arg("base-from-block");
-  if (baseFromFlag !== void 0 && !/^\d+$/.test(baseFromFlag)) throw new Error("--base-from-block takes a block number");
+  const baseHits = /* @__PURE__ */ new Map();
   let baseScan = null;
+  let baseWindows = null;
   let baseError = null;
-  if (useBase) {
+  let rangeFromGenesis = false;
+  if (useBase && baseMode === "range") {
     try {
       await assertBaseRpc(baseNet);
       const cpBaseFrom = cp ? checkpointBaseFrom(cp) : null;
+      rangeFromGenesis = baseFromFlag === void 0 && cpBaseFrom === null && solCore !== void 0;
       const baseFrom = baseFromFlag !== void 0 ? BigInt(baseFromFlag) : cpBaseFrom !== null ? cpBaseFrom : await blockAtOrBefore(baseNet, sinceMs);
       baseScan = await scanStreamAttestations(baseNet, streamId, baseFrom);
+      for (const [k, list] of baseScan.byWitnessKey) baseHits.set(k, list);
     } catch (err) {
-      baseError = err instanceof Error ? err.message : String(err);
+      baseError = errorText(err);
     }
   }
-  const baseIncomplete = useBase && (baseScan === null || !baseScan.complete);
-  if (useBase && baseError !== null) say(`WARNING        the Base witness could not be read: ${baseError.replace(/\s+/g, " ").slice(0, 200)}. Under the beta profile every manifest is on Solana, so the verdict below rests on Solana alone; pass --base-rpc <url> (or BASE_RPC_URL) for the second copy, or --no-base to skip it.`);
-  const onBase = (k) => baseScan?.byWitnessKey.get(toHex(k)) ?? [];
-  const gBase = { anchors: onBase(gKey) };
-  const cores = [...gSol.anchors, ...gBase.anchors].map((a) => a.payload).filter((p) => p.kind === "genesis");
+  const notReadAdvice = "Under the beta profile every manifest is on Solana, so the verdict below rests on Solana alone; pass --base-rpc <url> (or BASE_RPC_URL) for the second copy, or --no-base to skip it.";
+  const warnBase = () => say(`${baseMode === "windows" ? "base witness   NOT READ" : "WARNING        the Base witness could not be read"}: ${oneLine(baseError)}. ${notReadAdvice}`);
+  const warnBaseWindows = () => say(`base witness   NOT READ: not one block was read before the endpoint ${baseWindows?.stopReason === "error" ? `failed (${oneLine(baseWindows.error ?? "", 160)})` : "throttled for good"}. ${notReadAdvice}`);
+  if (baseError !== null) warnBase();
+  const onBase = (k) => baseHits.get(toHex(k)) ?? [];
+  const cores = [...gSol.anchors, ...onBase(gKey)].map((a) => a.payload).filter((p) => p.kind === "genesis");
   const core = cores.find((p) => p.kind === "genesis" && equal(keccak256(p.core), streamId));
   if (!core || core.kind !== "genesis") throw new Error(`no genesis core that hashes to the pinned stream_id under witness key ${witnessAddress(gKey)}${historyFromMs !== null ? `; ${prunedNote(new Date(historyFromMs).toISOString())}` : ""}`);
   const genesis = parseGenesisCore(core.core);
@@ -55816,14 +56106,17 @@ async function main() {
   }
   if (genesis.baseChainId !== baseNet.chainId || !equal(genesis.solanaGenesisHash, base58Decode(mainnet ? SOLANA_MAINNET_GENESIS_B58 : SOLANA_DEVNET_GENESIS_B58))) throw new Error("the genesis core names other networks than the ones being read");
   const baseStop = baseScan && !baseScan.complete ? baseScan.stopReason === "rate_limited" ? ", STOPPED EARLY: the endpoint kept throttling; pass --base-rpc, --base-from-block or --no-base" : ", STOPPED EARLY: call budget; pass --base-from-block or --no-base" : "";
-  say(`genesis core   found on solana x${gSol.anchors.length}${baseScan ? `, base x${gBase.anchors.length} (blocks ${baseScan.scannedFrom} to ${baseScan.scannedTo} in ${baseScan.calls} calls of ${baseScan.chunkUsed}${baseStop})` : useBase ? ", base NOT READ" : ""} \xB7 governance ${genesis.threshold}-of-${genesis.governance.length} \xB7 genesis ${new Date(Number(genesis.genesisEpochStartMs)).toISOString()}`);
+  const baseNote = baseScan ? `, base x${onBase(gKey).length} (blocks ${baseScan.scannedFrom} to ${baseScan.scannedTo} in ${baseScan.calls} calls of ${baseScan.chunkUsed}${baseStop})` : useBase && baseMode === "windows" && baseError === null ? ", base: read after the Solana anchors (windows mode, the base witness line below)" : useBase ? ", base NOT READ" : "";
+  say(`genesis core   found on solana x${gSol.anchors.length}${baseNote} \xB7 governance ${genesis.threshold}-of-${genesis.governance.length} \xB7 genesis ${new Date(Number(genesis.genesisEpochStartMs)).toISOString()}`);
   const found = [];
+  const alSolana = /* @__PURE__ */ new Map();
   for (let logSeq = 1; logSeq < 1e3; logSeq++) {
     const k = witnessKey(streamId, WITNESS_KIND.AL, BigInt(logSeq));
     const s = await readAnchors(conn, k, streamId);
     incomplete ||= !s.complete;
     const here = [...s.anchors, ...onBase(k)].map((a) => a.payload);
     if (here.length === 0) break;
+    if (s.anchors.length > 0) alSolana.set(BigInt(logSeq), s.anchors);
     for (const p of here) if (p.kind === "al") found.push({ entry: p.entry, bundle: p.bundle });
     await sleep2(120);
   }
@@ -55842,6 +56135,7 @@ async function main() {
   if (seed) say(`checkpoint     RESUMED from sequence ${from15} (reader checkpoint${cp?.as_of ? ` of ${cp.as_of}` : ""}): sequences before it rely on the run that wrote it and are not re-read here; this is not the full rc6 13.7 verdict`);
   const payloads = [];
   const witness = /* @__PURE__ */ new Map();
+  const dataSolana = /* @__PURE__ */ new Map();
   let emptyRun = 0;
   for (let s = from15; s <= to; s += BigInt(1)) {
     const k = witnessKey(streamId, WITNESS_KIND.DATA, s);
@@ -55849,16 +56143,56 @@ async function main() {
     incomplete ||= !sol.complete;
     const data = sol.anchors.filter((a) => a.payload.kind === "data");
     for (const a of data) if (a.payload.kind === "data") payloads.push({ manifest: a.payload.manifest, signature: a.payload.signature });
+    const firstData = data[0]?.payload;
+    if (firstData && firstData.kind === "data") dataSolana.set(s, { anchors: data, manifest: parseManifest(firstData.manifest) });
     witness.set(s.toString(), { solana: data.length, base: 0, slot: data[0]?.slot ?? null, timeSec: data[0]?.blockTimeSec ?? null });
     emptyRun = data.length === 0 ? emptyRun + 1 : 0;
     if (arg("to") === void 0 && emptyRun >= 3) break;
     await sleep2(120);
+  }
+  const fixedSkipped = cp?.base_fixed_windows === true;
+  const windowsThroughBefore = cp ? checkpointWindowsThrough(cp) : BigInt(-1);
+  let unplacedFixed = 0;
+  const blockTimes = (anchors) => anchors.map((a) => a.blockTimeSec).filter((t) => t !== null);
+  if (useBase && baseMode === "windows") {
+    try {
+      await assertBaseRpc(baseNet);
+      const specs = [];
+      if (!fixedSkipped) {
+        const fixed = (key, kind, n, anchors) => {
+          const spec = fixedCopyWindow(key, kind, n, blockTimes(anchors));
+          if (spec) specs.push(spec);
+          else unplacedFixed++;
+        };
+        fixed(gKey, "genesis", BigInt(0), gSol.anchors);
+        for (const [logSeq, anchors] of alSolana) fixed(witnessKey(streamId, WITNESS_KIND.AL, logSeq), "al", logSeq, anchors);
+      }
+      for (const [s, { anchors, manifest }] of dataSolana) {
+        if (s <= windowsThroughBefore) continue;
+        specs.push(...dataCopyWindows(witnessKey(streamId, WITNESS_KIND.DATA, s), s, manifest, blockTimes(anchors)));
+      }
+      baseWindows = await scanWitnessWindows(baseNet, streamId, specs, { extensionMs });
+      for (const [k, list] of baseWindows.byWitnessKey) baseHits.set(k, list);
+    } catch (err) {
+      baseError = errorText(err);
+      warnBase();
+    }
+  }
+  if (baseWindows) {
+    const w = baseWindows;
+    const of = (kind) => w.copies.filter((x) => x.kind === kind).length;
+    const stop = !w.complete ? w.stopReason === "rate_limited" ? " \xB7 STOPPED EARLY: the endpoint kept throttling; the windows after that are not walked" : w.stopReason === "error" ? ` \xB7 STOPPED EARLY: the endpoint failed (${oneLine(w.error ?? "", 160)}); the windows after that are not walked` : " \xB7 STOPPED EARLY: call budget; the windows after that are not walked" : "";
+    say(`base witness   windows mode: ${w.copies.length} expected cop${w.copies.length === 1 ? "y" : "ies"} (genesis ${of("genesis")}, log ${of("al")}, data ${of("data")}${fixedSkipped ? "; genesis and log windows walked by the run that wrote the checkpoint" : ""}) in ${w.windows.length} window${w.windows.length === 1 ? "" : "s"} \xB7 found ${w.found} \xB7 missing ${w.missing} \xB7 still open ${w.open} \xB7 not walked ${w.notWalked} \xB7 ${w.calls} calls of up to ${w.chunkUsed + BigInt(1)} blocks${unplacedFixed ? ` \xB7 ${unplacedFixed} not placed (no block time on Solana)` : ""}${w.driftBlocks !== BigInt(0) ? ` \xB7 clock drift ${w.driftBlocks} blocks` : ""}${w.driftRejected !== null ? ` \xB7 WARNING: the probe block disagreed with the arithmetic by ${w.driftRejected} blocks, not believed; the windows stand on the arithmetic` : ""}${stop}`);
+    for (const c of w.copies) if (c.status === "missing") say(`base witness   MISSING: ${c.kind === "data" ? `manifest ${c.n}` : c.kind === "al" ? `log entry ${c.n}` : "genesis core"} has no Base copy in ${w.windows.filter((x) => x.kind === c.kind && x.n === c.n).map((x) => `blocks ${x.from} to ${x.to}${x.extended ? " (extended)" : ""}`).join(" nor ")}; a run without --checkpoint and with --base-extension-hours 24, or range mode (--base-scan range), looks further`);
+    if (w.latestBlock < BigInt(0)) warnBaseWindows();
   }
   for (const [s] of witness) {
     const anchors = onBase(witnessKey(streamId, WITNESS_KIND.DATA, BigInt(s)));
     for (const a of anchors) if (a.payload.kind === "data") payloads.push({ manifest: a.payload.manifest, signature: a.payload.signature });
     witness.get(s).base = anchors.length;
   }
+  const baseIncomplete = useBase && (baseMode === "range" ? baseScan === null || !baseScan.complete : baseWindows === null || !baseWindows.complete);
+  const baseRead = useBase && (baseScan !== null || baseWindows !== null && baseWindows.latestBlock >= BigInt(0));
   const asOf = BigInt(Date.now());
   const cands = collectCandidates(al.state, genesis, payloads, asOf);
   const resolution = resolveCanonical(al.state, cands, genesis, asOf, to, seed);
@@ -55895,29 +56229,49 @@ async function main() {
   const headRow = head >= BigInt(0) ? resolution.get(head) : void 0;
   const cpOut = arg("checkpoint-out");
   let written = null;
-  const baseUnread = useBase && baseScan === null;
-  if (cpOut !== void 0 && passed && headRow?.commitment && !baseUnread) {
-    const seedHistory = seed !== void 0 && head === seed.sequence && seed.historyUnresolvedBefore === true;
+  const baseUnread = useBase && !baseRead;
+  const { sequence: cpSequence, heldBy } = checkpointSequence(head, seed !== void 0 ? seed.sequence : null, baseWindows ? baseWindows.copies : null);
+  const cpRow = cpSequence >= BigInt(0) ? resolution.get(cpSequence) : void 0;
+  if (cpOut !== void 0 && passed && headRow?.commitment && !baseUnread && cpRow?.commitment) {
+    const seedHistory = seed !== void 0 && cpSequence === seed.sequence && seed.historyUnresolvedBefore === true;
     const scannedBefore = cp?.base_scanned_to ? BigInt(cp.base_scanned_to) : BigInt(-1);
     const scannedNow = baseScan ? baseScan.scannedTo : BigInt(-1);
     const baseTo = scannedNow > scannedBefore ? scannedNow : scannedBefore;
-    written = { stream_id: streamHex, network, sequence: head.toString(), commitment: toHex(headRow.commitment), history_unresolved_before: headRow.flags.includes("HISTORY_UNRESOLVED_BEFORE") || seedHistory, al_head: { log_seq: al.head.logSeq.toString(), entry_hash: toHex(al.head.entryHash) }, solana_slot: witness.get(head.toString())?.slot ?? null, base_scanned_to: baseTo >= BigInt(0) ? baseTo.toString() : null, as_of: new Date(Number(asOf)).toISOString(), previous: cp ? { sequence: cp.sequence, commitment: cp.commitment } : null };
+    let rangeCovered = null;
+    if (baseScan && baseScan.complete && rangeFromGenesis) {
+      const closedBy = baseScan.latestTimeMs;
+      let through = BigInt(-1);
+      for (const [s, { anchors, manifest }] of dataSolana) {
+        const times = blockTimes(anchors);
+        const sentBy = times.length ? BigInt(Math.max(...times)) * BigInt(1e3) : null;
+        if (sentBy === null) continue;
+        const latestSend = sentBy > manifest.epochEndMs ? sentBy : manifest.epochEndMs;
+        if (latestSend + WINDOW_AFTER_MS + WINDOW_EXTENSION_MS <= closedBy && s > through) through = s;
+      }
+      const fixedTimes = [...gSol.anchors, ...[...alSolana.values()].flat()].map((a) => a.blockTimeSec);
+      const fixedClosed = fixedTimes.length > 0 && fixedTimes.every((t) => t !== null && BigInt(t) * BigInt(1e3) + FIXED_WINDOW_BEFORE_MS + WINDOW_AFTER_MS + WINDOW_EXTENSION_MS <= closedBy);
+      rangeCovered = { through, fixed: fixedClosed };
+    }
+    const { through: windowsThrough, fixed: fixedWindows } = windowsMarks({ copies: baseWindows ? baseWindows.copies : null, cpSequence, throughBefore: windowsThroughBefore, fixedBefore: fixedSkipped, unplacedFixed, rangeCovered });
+    written = { stream_id: streamHex, network, sequence: cpSequence.toString(), commitment: toHex(cpRow.commitment), history_unresolved_before: cpRow.flags.includes("HISTORY_UNRESOLVED_BEFORE") || seedHistory, al_head: { log_seq: al.head.logSeq.toString(), entry_hash: toHex(al.head.entryHash) }, solana_slot: witness.get(cpSequence.toString())?.slot ?? null, base_scanned_to: baseTo >= BigInt(0) ? baseTo.toString() : null, base_windows_through: windowsThrough >= BigInt(0) ? windowsThrough.toString() : null, base_fixed_windows: fixedWindows, as_of: new Date(Number(asOf)).toISOString(), previous: cp ? { sequence: cp.sequence, commitment: cp.commitment } : null };
     writeFileSync(cpOut, JSON.stringify(written, null, 1) + "\n");
   }
-  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, base_scan_error: baseError, base_scan: baseScan ? { from: baseScan.scannedFrom.toString(), to: baseScan.scannedTo.toString(), calls: baseScan.calls, complete: baseScan.complete, stop: baseScan.stopReason } : null, verdict: seed ? "resumed" : "full", resolved_from: cp ? { sequence: cp.sequence, commitment: cp.commitment, note: "reader checkpoint from an earlier run: sequences before it were not re-read, so this is a resumed verdict, not the full rc6 13.7 one" } : null, checkpoint_written: written ? { path: cpOut, sequence: written.sequence } : null, checkpoint_kept: cpOut !== void 0 && !written ? baseUnread ? "the Base witness was not read" : passed ? "nothing to write" : "the run did not pass" : null, checked, canonical, passed, sequences: rows }, null, 1));
+  const baseSummary = baseScan ? { mode: "range", from: baseScan.scannedFrom.toString(), to: baseScan.scannedTo.toString(), calls: baseScan.calls, complete: baseScan.complete, stop: baseScan.stopReason } : baseWindows ? { mode: "windows", copies: baseWindows.copies.length, windows: baseWindows.windows.length, found: baseWindows.found, missing: baseWindows.missing, open: baseWindows.open, not_walked: baseWindows.notWalked, unplaced: unplacedFixed, fixed_windows_from_checkpoint: fixedSkipped, calls: baseWindows.calls, chunk: baseWindows.chunkUsed.toString(), latest_block: baseWindows.latestBlock.toString(), drift_blocks: baseWindows.driftBlocks.toString(), drift_rejected: baseWindows.driftRejected?.toString() ?? null, complete: baseWindows.complete, stop: baseWindows.stopReason, error: baseWindows.error !== null ? oneLine(baseWindows.error, 400) : null } : null;
+  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, base_scan_error: baseError, base_scan: baseSummary, base_copies: baseWindows ? baseWindows.copies : null, base_windows: baseWindows ? baseWindows.windows : null, verdict: seed ? "resumed" : "full", resolved_from: cp ? { sequence: cp.sequence, commitment: cp.commitment, note: "reader checkpoint from an earlier run: sequences before it were not re-read, so this is a resumed verdict, not the full rc6 13.7 one" } : null, checkpoint_written: written ? { path: cpOut, sequence: written.sequence } : null, checkpoint_kept: cpOut !== void 0 && !written ? baseUnread ? "the Base witness was not read" : !passed ? "the run did not pass" : heldBy !== null ? `the Base window of sequence ${heldBy} is not walked yet` : "nothing to write" : null, checkpoint_held_before: written && heldBy !== null && BigInt(written.sequence) < head ? heldBy.toString() : null, checked, canonical, passed, sequences: rows }, null, 1));
   else {
     for (const r of rows) say(`seq ${String(r.sequence).padStart(5)}  ${String(r.state).padEnd(10)} ${String(r.commitment ?? "-").slice(0, 16)}  ${String(r.status ?? "-").padEnd(8)} records ${String(r.records ?? "-").padStart(3)}  end ${r.window_end ?? "-"}  solana x${r.solana_anchors}${Number(r.base_anchors) ? ` base x${r.base_anchors}` : ""}  anchored +${r.anchored_after_s ?? "?"} s${r.late ? " LATE" : ""}${r.flags.length ? "  [" + r.flags.join(",") + "]" : ""}`);
     if (seed && checked === 0) say(`no sequence after the checkpoint at ${seed.sequence} is anchored yet; the checkpoint is carried forward`);
+    const baseTail = baseIncomplete ? baseError ? " \xB7 the Base witness was not read" : " \xB7 the Base scan stopped early" : baseWindows ? ` \xB7 Base copies ${baseWindows.found} of ${baseWindows.copies.length} expected${baseWindows.missing ? ` (${baseWindows.missing} MISSING)` : ""}${baseWindows.open ? ` (${baseWindows.open} still open)` : ""}` : "";
     say(`
-${canonical} of ${checked} sequences CANONICAL${seed ? ` after the reader checkpoint at ${seed.sequence} (RESUMED verdict)` : ""} \xB7 stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseIncomplete ? baseError ? " \xB7 the Base witness was not read" : " \xB7 the Base scan stopped early" : ""}${incomplete ? " \xB7 a Solana enumeration was INCOMPLETE" : ""}`);
-    if (written) say(`checkpoint     written to ${cpOut}: sequence ${written.sequence}, next run continues from there`);
+${canonical} of ${checked} sequences CANONICAL${seed ? ` after the reader checkpoint at ${seed.sequence} (RESUMED verdict)` : ""} \xB7 stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseTail}${incomplete ? " \xB7 a Solana enumeration was INCOMPLETE" : ""}`);
+    if (written) say(`checkpoint     written to ${cpOut}: sequence ${written.sequence}${BigInt(written.sequence) < head ? ` (held before sequence ${heldBy}, whose Base window is not walked yet: the next run reads it again)` : ""}, next run continues from there`);
     else if (cpOut !== void 0 && baseUnread) say(`checkpoint     not written: the Base witness was not read in this run; the previous checkpoint stands`);
-    say(`read from ${solRpc.replace(/\?.*$/, "")}${useBase ? " and " + baseNet.rpcUrl : ""} \xB7 window length ${Number(EPOCH_MS) / 1e3} s`);
+    say(`read from ${endpointHost(solRpc)}${useBase ? " and " + endpointHost(baseNet.rpcUrl) : ""} \xB7 window length ${Number(EPOCH_MS) / 1e3} s`);
   }
   process.exit(passed ? 0 : 1);
 }
 main().catch((err) => {
-  console.error(`[byk-verify] ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`[byk-verify] ${errorText(err)}`);
   process.exit(1);
 });
 /*! Bundled license information:
