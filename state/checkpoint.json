@@ -1,18 +1,20 @@
 {
  "stream_id": "46b69e107bc75175e86a336662311c6e198bbf0dab271c06bc5248888238f66d",
  "network": "mainnet",
- "sequence": "8768",
- "commitment": "57b3cae82f85e84365208dd03932fb3cae2da6167b3dea0300a6cac8fc40e76b",
+ "sequence": "8832",
+ "commitment": "806674be41d3edfadf0910d288be714bdec540a423824073068afca12b4b9921",
  "history_unresolved_before": false,
  "al_head": {
   "log_seq": "1",
   "entry_hash": "7977e726c75844c0f45d07f66813e4f19e408c4b9551e914c741515bfe97da24"
  },
- "solana_slot": 458478459,
+ "solana_slot": 458567007,
  "base_scanned_to": "51448926",
- "as_of": "2026-10-18T15:09:48.189Z",
+ "base_windows_through": null,
+ "base_fixed_windows": true,
+ "as_of": "2026-10-18T20:27:41.044Z",
  "previous": {
-  "sequence": "8750",
-  "commitment": "619b1bfdf122dcdda62beb7d18063c7466ac4ad71cab0a2e1652febda3e9b9c9"
+  "sequence": "8768",
+  "commitment": "57b3cae82f85e84365208dd03932fb3cae2da6167b3dea0300a6cac8fc40e76b"
  }
 }
