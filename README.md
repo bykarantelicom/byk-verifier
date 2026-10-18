@@ -90,6 +90,20 @@ this repository is paired with a full run every Sunday for that reason: every se
 on Solana, which carries the verdict, and every expected Base copy is looked for again in its window (a range pass
 over Base needs an endpoint that allows thousands of blocks per call; the keyed free endpoint the runs use allows ten).
 
+### The cache proof: a resumed run with the full verdict
+
+Section 13.7 allows cached results when they are provably identical to a full evaluation, which needs no new log entry
+and no new admissible anchor under any witness key of a cached sequence. A checkpoint written by a full run (and by every
+run after it) records the newest transaction signature listed under each data witness key up to its sequence
+(`newest_signatures`, one entry per sequence). `--cache-proof` makes the next run ask every one of those keys for its
+newest transaction, one call each, and compare: nothing new under any of them, or only failed and inadmissible
+transactions, proves that the cached sequences would resolve exactly as before, and the run reports `"verdict": "full"`
+with a `cache_proof` block; a new admissible anchor under a cached key, a pruned endpoint or a checkpoint without the
+list leaves the verdict RESUMED with the reason. The proof covers the Solana witness, which carries the verdict under
+the beta profile; the Base copies of cached sequences are not read again (the Sunday run looks for every expected copy
+once more). The daily run in this repository passes the flag; the Sunday run reads everything from sequence 0
+regardless. On an archive endpoint the proof costs about one request a sequence.
+
 ## Change one digit
 
 ```

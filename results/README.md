@@ -3,7 +3,9 @@
 One line per run of `byk-verify.mjs` from GitHub Actions (`.github/workflows/verify.yml`): daily RESUMED runs from the committed
 checkpoint and, on Sundays, a FULL run from sequence 0. The JSON of each run sits next to this file; `state/checkpoint.json` is the
 reader checkpoint the next run continues from. A RESUMED run is not the full rc6 13.7 verdict: sequences before the checkpoint rely
-on the run that wrote it.
+on the run that wrote it. From 19 Oct 2026 the daily run carries the rc6 13.7 cache proof (`--cache-proof`): when every data witness
+key before the checkpoint lists the same newest transaction the checkpoint recorded (or only failed and inadmissible ones after
+it), the cached sequences are provably unchanged and the line says "full, cache proof held".
 
 | as of (UTC) | mode | verdict | sequences | head | Base witness | exit |
 |---|---|---|---|---|---|---|

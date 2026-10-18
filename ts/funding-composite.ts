@@ -167,6 +167,20 @@ function sumBig(xs: bigint[]): bigint {
   return xs.reduce((a, b) => a + b, B0);
 }
 
+/** The leaf of a Class A record with no input at all (rc7 feedback of 18 Oct 2026, option 1): NO_DATA with
+ *  expected_source_count 0 and every other field zero, exactly what the engine seals when nothing was observed. */
+export function emptyInputLeaf(): FundingLeaf {
+  return { value: B0, dispersion: B0, source_count: 0, expected_source_count: 0, coverage_bps: 0, outlier_count: 0, max_source_age_ms: 0, status: "NO_DATA" };
+}
+
+/** The leaf a retained input snapshot yields: Annex A over a non-empty venue list, the empty-input leaf over an empty
+ *  one without running the algorithm (A.10's parameter check refuses an empty catalogue; it is for non-empty inputs).
+ *  The engine seals from this and the shadow audit recomputes with it, as byk_ref.audit_range does (rc7 feedback,
+ *  18 Oct 2026, option 1: a sealed Class A leaf always has its input of record, even when the input is nothing). */
+export function fundingCompositeFromRecord(venues: FundingVenueInput[], params: Record<string, unknown>, tMs: bigint): { leaf: FundingLeaf; details: FundingVenueDetail[] } {
+  return venues.length === 0 ? { leaf: emptyInputLeaf(), details: [] } : fundingComposite(venues, params, tMs);
+}
+
 /** A.3 to A.8 for one feed at T = epoch_end_ms. Returns the leaf fields and the per-venue working, so a
  *  reader can see why a venue was left out. Every returned leaf is encodable as a Section 7.1 record.
  *  Throws BykError when the parameters or the shape of a venue object are invalid; an invalid VALUE inside

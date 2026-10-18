@@ -58,3 +58,14 @@ test("reader checkpoint: an authorization log head other than the recorded one r
   assert.match(alHeadChanged(cp, { logSeq: BigInt(1), entryHash: fromHex("11".repeat(32)) }) ?? "", /run a full verification/);
   assert.equal(alHeadChanged(parseCheckpoint(JSON.stringify({ ...ok, al_head: null }), STREAM, "mainnet"), { logSeq: BigInt(9), entryHash: fromHex(C) }), null);
 });
+
+test("reader checkpoint: the newest-signature list is optional, one base58 signature or null per sequence from 0 to the checkpoint", () => {
+  const sig = "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW";
+  const cp = parseCheckpoint(JSON.stringify({ ...ok, sequence: "2", newest_signatures: [sig, null, sig] }), STREAM, "mainnet");
+  assert.deepEqual(cp.newest_signatures, [sig, null, sig]);
+  assert.equal(parseCheckpoint(JSON.stringify({ ...ok, newest_signatures: null }), STREAM, "mainnet").newest_signatures, null);
+  assert.equal(parseCheckpoint(JSON.stringify(ok), STREAM, "mainnet").newest_signatures, undefined, "a file from before the cache proof still parses");
+  assert.throws(() => parseCheckpoint(JSON.stringify({ ...ok, sequence: "2", newest_signatures: [sig, sig] }), STREAM, "mainnet"), /newest_signatures is malformed/, "one entry short");
+  assert.throws(() => parseCheckpoint(JSON.stringify({ ...ok, sequence: "1", newest_signatures: [sig, "not base58 0OIl"] }), STREAM, "mainnet"), /newest_signatures is malformed/);
+  assert.throws(() => parseCheckpoint(JSON.stringify({ ...ok, sequence: "0", newest_signatures: "x" }), STREAM, "mainnet"), /newest_signatures is malformed/);
+});

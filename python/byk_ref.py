@@ -793,11 +793,18 @@ def audit_range(genesis, resolution, manifests, leaves_by_commitment, catalog, s
             if snap["T"] != m["epoch_end_ms"] or snap["parameters"] != methodology_params:
                 reasons.append("sequence %d: Class A snapshot T or parameters differ for %s/%s" % (s, feed, asset))
                 continue
-            try:
-                exp, _ = funding_composite(snap["venues"], snap["parameters"], snap["T"])
-            except (ValueError, KeyError) as err:
-                reasons.append("sequence %d: Class A snapshot invalid for %s/%s (%s)" % (s, feed, asset, err))
-                continue
+            if len(snap["venues"]) == 0:
+                # rc7 feedback (2026-10-18), option 1: a Class A leaf sealed from no input at all carries a snapshot
+                # with an empty venue list and recomputes as NO_DATA with expected_source_count 0; Annex A's parameter
+                # check (catalog size at least 1) is for non-empty inputs and is not run here.
+                exp = dict(status="NO_DATA", value=0, source_count=0, expected_source_count=0, coverage_bps=0,
+                           outlier_count=0, max_source_age_ms=0, dispersion=0)
+            else:
+                try:
+                    exp, _ = funding_composite(snap["venues"], snap["parameters"], snap["T"])
+                except (ValueError, KeyError) as err:
+                    reasons.append("sequence %d: Class A snapshot invalid for %s/%s (%s)" % (s, feed, asset, err))
+                    continue
             expected = dict(status=STATUS[exp["status"]], decimals=10, observed_at_ms=snap["T"], value=exp["value"],
                             source_count=exp["source_count"], expected_source_count=exp["expected_source_count"],
                             coverage_bps=exp["coverage_bps"], outlier_count=exp["outlier_count"],

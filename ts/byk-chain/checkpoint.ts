@@ -30,6 +30,10 @@ export type CheckpointFile = {
   base_fixed_windows?: boolean;
   as_of?: string;
   previous?: { sequence: string; commitment: string } | null;
+  /** cache proof (rc6 13.7, 2026-10-18): the newest transaction signature the run that wrote the file listed under each
+   *  data witness key, index = sequence, 0 to `sequence`; null where a key listed nothing; absent or null when no run of
+   *  this reader's lineage listed every key (a full run with --checkpoint-out records them) */
+  newest_signatures?: Array<string | null> | null;
 };
 
 /** The next run starts its Base scan this many blocks before the last scanned one: an hour at Base's 2 s blocks, so a
@@ -38,6 +42,7 @@ export const CHECKPOINT_BASE_REWIND = BigInt(1800);
 
 const HEX64 = /^(0x)?[0-9a-f]{64}$/i;
 const DIGITS = /^\d+$/;
+const BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,128}$/;
 
 /** Parses and validates a checkpoint file for one stream on one network. Every refusal names the file. */
 export function parseCheckpoint(text: string, streamHex: string, network: string, label = "--checkpoint"): CheckpointFile {
@@ -56,6 +61,10 @@ export function parseCheckpoint(text: string, streamHex: string, network: string
   if (cp.base_fixed_windows !== undefined && typeof cp.base_fixed_windows !== "boolean") throw new Error(`${label}: base_fixed_windows is malformed`);
   if (cp.al_head !== undefined && cp.al_head !== null) {
     if (typeof cp.al_head !== "object" || !DIGITS.test(String(cp.al_head.log_seq)) || !HEX64.test(String(cp.al_head.entry_hash))) throw new Error(`${label}: al_head is malformed`);
+  }
+  if (cp.newest_signatures !== undefined && cp.newest_signatures !== null) {
+    const list = cp.newest_signatures;
+    if (!Array.isArray(list) || list.length !== Number(cp.sequence) + 1 || !list.every((x) => x === null || (typeof x === "string" && BASE58.test(x)))) throw new Error(`${label}: newest_signatures is malformed (one base58 signature or null per sequence from 0 to ${cp.sequence})`);
   }
   return cp as CheckpointFile;
 }

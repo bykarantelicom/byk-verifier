@@ -2,7 +2,7 @@
  * window continuity, the leaf set against the catalog, the Merkle root, the epoch status derived from the
  * leaves, and recomputes EVERY Class A leaf (whatever its status) from its retained input snapshot. */
 import { BykError, type Bytes, compare, equal, toHex } from "./bytes";
-import { fundingComposite, type FundingVenueInput, paramsEqual } from "./funding-composite";
+import { fundingCompositeFromRecord, type FundingVenueInput, paramsEqual } from "./funding-composite";
 import { id32, leafKey, merkleRoot, parseLeaf, STATUS, type Leaf } from "./records";
 import { type Resolution } from "./resolve";
 import { type Genesis, parseManifest, validateManifestInStream } from "./stream";
@@ -94,7 +94,8 @@ export function auditRange(input: {
       }
       let exp;
       try {
-        exp = fundingComposite(snap.venues, snap.parameters, snap.T).leaf;
+        // an empty venue list is the record of a leaf sealed from no input: NO_DATA without Annex A (rc7 feedback, option 1)
+        exp = fundingCompositeFromRecord(snap.venues, snap.parameters, snap.T).leaf;
       } catch (err) {
         if (!(err instanceof BykError)) throw err;
         reasons.push(`sequence ${s}: Class A snapshot invalid for ${label} (${err.message})`);

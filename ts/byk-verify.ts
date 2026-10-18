@@ -13,7 +13,7 @@
  * Usage: npx tsx src/scripts/byk-verify.ts --stream <64 hex> [--network devnet|mainnet] [--to <sequence>]
  *        (readers run the same code as one file: node byk-verify.mjs ..., see scripts/byk-verify-bundle.mjs)
  *        [--solana-rpc <url>] [--base-rpc <url>] [--base-scan windows|range] [--base-from-block <n>] [--no-base] [--json]
- *        [--base-extension-hours <h>] [--checkpoint <file>] [--checkpoint-out <file>] [--help]
+ *        [--base-extension-hours <h>] [--checkpoint <file>] [--checkpoint-out <file>] [--cache-proof] [--help]
  * Environment: SOLANA_RPC_URL and BASE_RPC_URL stand in for the two --rpc flags on mainnet.
  * Beta profile: every manifest is on Solana, one a day on Base, so Solana carries the range and Base is
  * checked for the genesis core, the log entries and whichever manifests it holds. A Base endpoint that cannot
@@ -27,10 +27,13 @@
  * sequence on and seed the resolution with it (the row is flagged READER_CHECKPOINT; nothing before it is re-read
  * in that run, so a late conflicting anchor for an older sequence is only seen by a full run). rc6 13.7 calls a
  * verdict that starts at a checkpoint non-conformant (N20) and allows cached results only when no new log entry
- * and no new anchor exists for the cached keys: the log head is compared (a changed log refuses the checkpoint),
- * the anchors are not re-listed, so the output says RESUMED and a periodic full run gives the 13.7 verdict. The
- * checkpoint is the reader's own earlier verdict, not a protocol object (the log's type 3 checkpoint is
- * governance-signed).
+ * and no new anchor exists for the cached keys: the log head is compared (a changed log refuses the checkpoint);
+ * without --cache-proof the anchors are not re-listed, so the output says RESUMED and a periodic full run gives
+ * the 13.7 verdict; with --cache-proof (lib/byk-chain/cache-proof.ts) every data witness key before the checkpoint
+ * is asked for its newest transaction and compared with the one the checkpoint recorded, so a run that finds
+ * nothing new (or only failed and inadmissible transactions) carries the FULL verdict at the cost of one call a
+ * sequence. The checkpoint is the reader's own earlier verdict, not a protocol object (the log's type 3 checkpoint
+ * is governance-signed).
  * Nothing printed or written by this program carries an endpoint's path or query string: a keyed URL (Alchemy,
  * Infura, Helius) is cut to its host wherever it could appear (lib/byk-chain/redact.ts), because the daily run
  * commits its output to a public repository. */
@@ -43,6 +46,7 @@ import {
   type Manifest, maxSequence, parseGenesisCore, parseManifest, type ReaderCheckpoint, recoverAddress, resolveCanonical, SOLANA_DEVNET_GENESIS_B58, SOLANA_MAINNET_GENESIS_B58, toHex, WITNESS_KIND, witnessKey,
 } from "./index";
 import { assertBaseRpc, type BaseAnchor, BASE_MAINNET_RPC, BASE_SEPOLIA_RPC, type BaseNetwork, blockAtOrBefore, FIXED_WINDOW_BEFORE_MS, messageOf, type RangeScan, scanStreamAttestations, scanWitnessWindows, WINDOW_AFTER_MS, WINDOW_EXTENSION_MS, type WindowSpec, type WindowsScan } from "./byk-chain/base";
+import { assembleNewestList, type CacheProof, proveCachedSequences, unprovable } from "./byk-chain/cache-proof";
 import { alHeadChanged, type CheckpointFile, checkpointBaseFrom, checkpointCommitment, checkpointWindowsThrough, parseCheckpoint } from "./byk-chain/checkpoint";
 import { endpointHost, oneLine, redactUrls } from "./byk-chain/redact";
 import { assertSolanaNetwork, readAnchors, SOLANA_DEVNET_RPC, type SolanaAnchor, witnessAddress } from "./byk-chain/solana";
@@ -72,6 +76,11 @@ const USAGE = `byk-verify: independent verifier of a BYK Data Layer stream (read
     --no-base                 skip the Base witness (the verdict rests on Solana under the beta profile)
     --checkpoint <file>       continue from a checkpoint written by an earlier run (--checkpoint-out)
     --checkpoint-out <file>   after a run that passed, write the last CANONICAL sequence for the next run
+    --cache-proof             with --checkpoint: ask every data witness key before the checkpoint for its newest
+                              transaction (one call a sequence) and compare it with the one the checkpoint recorded;
+                              when nothing new was anchored under any of them (failed and inadmissible transactions
+                              do not count), the cached sequences are provably unchanged and the verdict is FULL under
+                              rc6 13.7 instead of RESUMED; a full run with --checkpoint-out records the signatures
   Exit code 0 only when every checked sequence is CANONICAL and no Solana enumeration was incomplete.`;
 
 /* Public Solana endpoints rate-limit hard. web3.js retries a 429 on its own but prints a line for every retry, which
@@ -136,6 +145,8 @@ async function main(): Promise<void> {
   }
   const cp: CheckpointFile | null = cpText !== null ? parseCheckpoint(cpText, streamHex, network, `--checkpoint ${cpPath}`) : null;
   const seed: ReaderCheckpoint | undefined = cp ? { sequence: BigInt(cp.sequence), commitment: checkpointCommitment(cp), historyUnresolvedBefore: cp.history_unresolved_before === true } : undefined;
+  const cacheProof = has("cache-proof");
+  if (cacheProof && cp === null) throw new Error("--cache-proof belongs to a resumed run: pass --checkpoint <file> as well (a full run with --checkpoint-out records the signatures the proof compares against)");
   const say = (line: string) => {
     if (!json) console.log(line);
   };
@@ -192,7 +203,8 @@ async function main(): Promise<void> {
   const core = cores.find((p) => p.kind === "genesis" && equal(keccak256(p.core), streamId));
   if (!core || core.kind !== "genesis") throw new Error(`no genesis core that hashes to the pinned stream_id under witness key ${witnessAddress(gKey)}${historyFromMs !== null ? `; ${prunedNote(new Date(historyFromMs).toISOString())}` : ""}`);
   const genesis = parseGenesisCore(core.core);
-  if (historyFromMs !== null && historyFromMs > Number(genesis.genesisEpochStartMs)) {
+  const pruned = historyFromMs !== null && historyFromMs > Number(genesis.genesisEpochStartMs);
+  if (pruned) {
     incomplete = true;
     say(`WARNING        ${prunedNote(new Date(historyFromMs).toISOString())}. Every sequence below is reported INCOMPLETE.`);
   }
@@ -222,14 +234,37 @@ async function main(): Promise<void> {
     if (changed !== null) throw new Error(changed);
   }
 
+  /* 2b · cache proof (rc6 13.7, --cache-proof): the sequences before the checkpoint are not re-read; instead every one of
+   * their data witness keys is asked for its newest transaction and compared with the one the checkpoint recorded. Nothing
+   * new, or only failed and inadmissible transactions, means no new admissible anchor under any cached key, which with the
+   * unchanged log head above is the 13.7 condition for reusing the cached results: the verdict is then FULL. */
+  let proof: CacheProof | null = null;
+  if (cp && seed && cacheProof) {
+    const stored = cp.newest_signatures ?? null;
+    if (stored === null) proof = unprovable("the checkpoint carries no newest_signatures list (written before a full run of this reader recorded one); a full run with --checkpoint-out records every key", []);
+    else if (pruned) proof = unprovable("this Solana endpoint is pruned, so a key that lists nothing here proves nothing; use an archive endpoint", stored);
+    else {
+      say(`cache proof    asking the ${seed.sequence} data witness keys before the checkpoint for their newest transaction (one call each, rc6 13.7)`);
+      try {
+        proof = await proveCachedSequences(conn, streamId, stored, seed.sequence);
+      } catch (err) {
+        /* the proof is optional: an endpoint error inside it leaves the verdict RESUMED instead of ending the run */
+        proof = unprovable(`the proof stopped on an endpoint error: ${oneLine(errorText(err), 300)}`, stored);
+      }
+    }
+    if (proof.proven) say(`cache proof    HELD on the Solana witness: ${proof.checked} cached sequences, ${proof.changed} with new transactions, all ${proof.inadmissible} of them inadmissible, ${proof.calls} calls: with the unchanged log head the cached results are provably identical to a full evaluation, so this run carries the FULL verdict (the Base copies of cached sequences are not read again; the Sunday full run looks for them)`);
+    else say(`cache proof    NOT HELD after ${proof.checked} sequences and ${proof.calls} calls: ${proof.reason}. The verdict below stays RESUMED.`);
+  }
+
   // 3 · manifests
   const startedAt = BigInt(Date.now());
   const sMax = maxSequence(genesis, startedAt);
   const to = arg("to") !== undefined ? BigInt(arg("to")!) : sMax;
   const from = seed ? seed.sequence : BigInt(0);
   if (from > to) throw new Error(`the checkpoint sequence ${from} is beyond the requested range (--to ${to})`);
-  if (seed) say(`checkpoint     RESUMED from sequence ${from} (reader checkpoint${cp?.as_of ? ` of ${cp.as_of}` : ""}): sequences before it rely on the run that wrote it and are not re-read here; this is not the full rc6 13.7 verdict`);
+  if (seed) say(`checkpoint     ${proof?.proven ? "FULL (unless an enumeration below is incomplete)" : "RESUMED"} from sequence ${from} (reader checkpoint${cp?.as_of ? ` of ${cp.as_of}` : ""}): sequences before it ${proof?.proven ? "are not re-read, but every one of their witness keys was shown to carry nothing new since that run (cache proof), the rc6 13.7 condition for reusing them" : "rely on the run that wrote it and are not re-read here; this is not the full rc6 13.7 verdict"}`);
   const payloads: AnchoredPayload[] = [];
+  const newestBySeq = new Map<bigint, string | null>(); // the newest transaction under each key read here, for the next checkpoint's cache proof
   const witness = new Map<string, { solana: number; base: number; slot: number | null; timeSec: number | null }>();
   const dataSolana = new Map<bigint, { anchors: SolanaAnchor[]; manifest: Manifest }>();
   let emptyRun = 0;
@@ -237,6 +272,7 @@ async function main(): Promise<void> {
     const k = witnessKey(streamId, WITNESS_KIND.DATA, s);
     const sol = await readAnchors(conn, k, streamId);
     incomplete ||= !sol.complete;
+    newestBySeq.set(s, sol.newestSignature);
     const data = sol.anchors.filter((a) => a.payload.kind === "data");
     for (const a of data) if (a.payload.kind === "data") payloads.push({ manifest: a.payload.manifest, signature: a.payload.signature });
     const firstData = data[0]?.payload;
@@ -390,7 +426,14 @@ async function main(): Promise<void> {
       rangeCovered = { through, fixed: fixedClosed };
     }
     const { through: windowsThrough, fixed: fixedWindows } = windowsMarks({ copies: baseWindows ? baseWindows.copies : null, cpSequence, throughBefore: windowsThroughBefore, fixedBefore: fixedSkipped, unplacedFixed, rangeCovered });
-    written = { stream_id: streamHex, network, sequence: cpSequence.toString(), commitment: toHex(cpRow.commitment), history_unresolved_before: cpRow.flags.includes("HISTORY_UNRESOLVED_BEFORE") || seedHistory, al_head: { log_seq: al.head.logSeq.toString(), entry_hash: toHex(al.head.entryHash) }, solana_slot: witness.get(cpSequence.toString())?.slot ?? null, base_scanned_to: baseTo >= BigInt(0) ? baseTo.toString() : null, base_windows_through: windowsThrough >= BigInt(0) ? windowsThrough.toString() : null, base_fixed_windows: fixedWindows, as_of: new Date(Number(asOf)).toISOString(), previous: cp ? { sequence: cp.sequence, commitment: cp.commitment } : null };
+    /* The cache proof's record (rc6 13.7): the newest transaction under each data witness key up to the checkpoint sequence.
+     * A full run listed every key and records them all; a resumed run keeps the cached part of the list it continued from
+     * (moved forward on the keys whose new transactions the proof saw were all inadmissible) and adds the keys it read
+     * itself; a resumed run from a checkpoint without a list records none, since the keys before its seed were never
+     * listed by this reader's lineage. */
+    const cachedPart: Array<string | null> | null = seed === undefined ? [] : proof !== null && proof.newest.length > 0 ? proof.newest : (cp?.newest_signatures ?? null);
+    const newestSignatures = assembleNewestList(cachedPart, from, cpSequence, newestBySeq);
+    written = { stream_id: streamHex, network, sequence: cpSequence.toString(), commitment: toHex(cpRow.commitment), history_unresolved_before: cpRow.flags.includes("HISTORY_UNRESOLVED_BEFORE") || seedHistory, al_head: { log_seq: al.head.logSeq.toString(), entry_hash: toHex(al.head.entryHash) }, solana_slot: witness.get(cpSequence.toString())?.slot ?? null, base_scanned_to: baseTo >= BigInt(0) ? baseTo.toString() : null, base_windows_through: windowsThrough >= BigInt(0) ? windowsThrough.toString() : null, base_fixed_windows: fixedWindows, as_of: new Date(Number(asOf)).toISOString(), previous: cp ? { sequence: cp.sequence, commitment: cp.commitment } : null, newest_signatures: newestSignatures };
     writeFileSync(cpOut, JSON.stringify(written, null, 1) + "\n");
   }
   const baseSummary = baseScan
@@ -398,13 +441,16 @@ async function main(): Promise<void> {
     : baseWindows
       ? { mode: "windows" as const, copies: baseWindows.copies.length, windows: baseWindows.windows.length, found: baseWindows.found, missing: baseWindows.missing, open: baseWindows.open, not_walked: baseWindows.notWalked, unplaced: unplacedFixed, fixed_windows_from_checkpoint: fixedSkipped, calls: baseWindows.calls, chunk: baseWindows.chunkUsed.toString(), latest_block: baseWindows.latestBlock.toString(), drift_blocks: baseWindows.driftBlocks.toString(), drift_rejected: baseWindows.driftRejected?.toString() ?? null, complete: baseWindows.complete, stop: baseWindows.stopReason, error: baseWindows.error !== null ? oneLine(baseWindows.error, 400) : null }
       : null;
-  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, base_scan_error: baseError, base_scan: baseSummary, base_copies: baseWindows ? baseWindows.copies : null, base_windows: baseWindows ? baseWindows.windows : null, verdict: seed ? "resumed" : "full", resolved_from: cp ? { sequence: cp.sequence, commitment: cp.commitment, note: "reader checkpoint from an earlier run: sequences before it were not re-read, so this is a resumed verdict, not the full rc6 13.7 one" } : null, checkpoint_written: written ? { path: cpOut, sequence: written.sequence } : null, checkpoint_kept: cpOut !== undefined && !written ? (baseUnread ? "the Base witness was not read" : !passed ? "the run did not pass" : heldBy !== null ? `the Base window of sequence ${heldBy} is not walked yet` : "nothing to write") : null, checkpoint_held_before: written && heldBy !== null && BigInt(written.sequence) < head ? heldBy.toString() : null, checked, canonical, passed, sequences: rows }, null, 1));
+  /* FULL: every sequence read in this run, or the cached ones proven unchanged (rc6 13.7) and the rest enumerated to the end;
+   * RESUMED otherwise. */
+  const verdict: "full" | "resumed" = seed === undefined || (proof?.proven === true && !incomplete) ? "full" : "resumed";
+  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, base_scan_error: baseError, base_scan: baseSummary, base_copies: baseWindows ? baseWindows.copies : null, base_windows: baseWindows ? baseWindows.windows : null, verdict, cache_proof: proof ? { proven: proof.proven, witness: "solana", checked: proof.checked, changed: proof.changed, inadmissible: proof.inadmissible, calls: proof.calls, reason: proof.reason, sequence: proof.sequence } : null, resolved_from: cp ? { sequence: cp.sequence, commitment: cp.commitment, note: verdict === "full" ? "reader checkpoint from an earlier run: sequences before it were not re-read, but every data witness key before it was shown to carry nothing new on the Solana witness since that run (cache proof), so the cached results are provably identical to a full evaluation and this is a full verdict under rc6 13.7" : proof?.proven ? "reader checkpoint from an earlier run: the cache proof held, but a Solana enumeration of this run was incomplete, so this is a resumed verdict" : "reader checkpoint from an earlier run: sequences before it were not re-read, so this is a resumed verdict, not the full rc6 13.7 one" } : null, checkpoint_written: written ? { path: cpOut, sequence: written.sequence } : null, checkpoint_kept: cpOut !== undefined && !written ? (baseUnread ? "the Base witness was not read" : !passed ? "the run did not pass" : heldBy !== null ? `the Base window of sequence ${heldBy} is not walked yet` : "nothing to write") : null, checkpoint_held_before: written && heldBy !== null && BigInt(written.sequence) < head ? heldBy.toString() : null, checked, canonical, passed, sequences: rows }, null, 1));
   else {
     for (const r of rows) say(`seq ${String(r.sequence).padStart(5)}  ${String(r.state).padEnd(10)} ${String(r.commitment ?? "-").slice(0, 16)}  ${String(r.status ?? "-").padEnd(8)} records ${String(r.records ?? "-").padStart(3)}  end ${r.window_end ?? "-"}  solana x${r.solana_anchors}${Number(r.base_anchors) ? ` base x${r.base_anchors}` : ""}  anchored +${r.anchored_after_s ?? "?"} s${r.late ? " LATE" : ""}${(r.flags as string[]).length ? "  [" + (r.flags as string[]).join(",") + "]" : ""}`);
     if (seed && checked === 0) say(`no sequence after the checkpoint at ${seed.sequence} is anchored yet; the checkpoint is carried forward`);
     const baseTail = baseIncomplete ? (baseError ? " · the Base witness was not read" : " · the Base scan stopped early") : baseWindows ? ` · Base copies ${baseWindows.found} of ${baseWindows.copies.length} expected${baseWindows.missing ? ` (${baseWindows.missing} MISSING)` : ""}${baseWindows.open ? ` (${baseWindows.open} still open)` : ""}` : "";
-    say(`\n${canonical} of ${checked} sequences CANONICAL${seed ? ` after the reader checkpoint at ${seed.sequence} (RESUMED verdict)` : ""} · stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseTail}${incomplete ? " · a Solana enumeration was INCOMPLETE" : ""}`);
-    if (written) say(`checkpoint     written to ${cpOut}: sequence ${written.sequence}${BigInt(written.sequence) < head ? ` (held before sequence ${heldBy}, whose Base window is not walked yet: the next run reads it again)` : ""}, next run continues from there`);
+    say(`\n${canonical} of ${checked} sequences CANONICAL${seed ? ` after the reader checkpoint at ${seed.sequence} (${verdict === "full" ? "FULL verdict, cache proof held" : "RESUMED verdict"})` : ""} · stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseTail}${incomplete ? " · a Solana enumeration was INCOMPLETE" : ""}`);
+    if (written) say(`checkpoint     written to ${cpOut}: sequence ${written.sequence}${BigInt(written.sequence) < head ? ` (held before sequence ${heldBy}, whose Base window is not walked yet: the next run reads it again)` : ""}${written.newest_signatures ? `, ${written.newest_signatures.length} newest signatures recorded for the cache proof` : ", no newest-signature list (a full run records one)"}, next run continues from there`);
     else if (cpOut !== undefined && baseUnread) say(`checkpoint     not written: the Base witness was not read in this run; the previous checkpoint stands`);
     say(`read from ${endpointHost(solRpc)}${useBase ? " and " + endpointHost(baseNet.rpcUrl) : ""} · window length ${Number(EPOCH_MS) / 1000} s`);
   }

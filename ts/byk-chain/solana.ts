@@ -48,7 +48,15 @@ export async function submitAnchor(conn: Connection, payer: Keypair, payload: Wi
 }
 
 export type SolanaAnchor = { signature: string; slot: number; blockTimeSec: number | null; payload: WitnessPayload };
-export type SolanaReadResult = { anchors: SolanaAnchor[]; complete: boolean; examined: number; inadmissible: number };
+export type SolanaReadResult = {
+  anchors: SolanaAnchor[];
+  complete: boolean;
+  examined: number;
+  inadmissible: number;
+  /** the newest transaction listed under the key, whatever its outcome: the record the rc6 13.7 cache proof compares
+   *  against on the next run (cache-proof.ts); null when the key lists nothing */
+  newestSignature: string | null;
+};
 
 /** Section 12.6 for one fetched transaction: succeeded, witness key among the STATIC account keys, exactly one
  *  SPL Memo instruction, the memo is exactly one of the three formats, and it belongs under this witness key. */
@@ -76,12 +84,14 @@ export async function readAnchors(conn: Connection, witnessKey: Bytes, streamId:
   let examined = 0;
   let inadmissible = 0;
   let complete = true;
+  let newestSignature: string | null = null;
   for (;;) {
     const page = await conn.getSignaturesForAddress(address, { before, limit: 100 }, "finalized");
     for (const s of page) {
       examined++;
+      if (opts.asOfSlot !== undefined && s.slot > opts.asOfSlot) continue; // beyond the as-of height: not judged, so not recorded either
+      if (newestSignature === null) newestSignature = s.signature; // newest first: the first one inside the as-of height
       if (s.err !== null) continue; // cheap-first: failed transactions are skipped without a fetch
-      if (opts.asOfSlot !== undefined && s.slot > opts.asOfSlot) continue;
       const tx = await conn.getTransaction(s.signature, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
       if (!tx) {
         complete = false; // listed but not retrievable: history is missing on this endpoint
@@ -99,7 +109,7 @@ export async function readAnchors(conn: Connection, witnessKey: Bytes, streamId:
     before = page[page.length - 1]!.signature;
   }
   out.sort((a, b) => a.slot - b.slot);
-  return { anchors: out, complete, examined, inadmissible };
+  return { anchors: out, complete, examined, inadmissible, newestSignature };
 }
 
 /** Section 12.2: an endpoint counts only when it is the network the genesis core names. */

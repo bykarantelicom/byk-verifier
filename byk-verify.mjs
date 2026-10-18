@@ -2,7 +2,7 @@
 // Reads only the Solana and Base chains: no ByKaranteli API, no database. Pin the stream id and run
 //   node byk-verify.mjs --stream <64 hex stream id> --network mainnet
 // Options: --to <sequence>  --solana-rpc <url>  --base-rpc <url>  --base-scan windows|range  --base-from-block <n>
-//          --base-extension-hours <h>  --no-base  --json  --checkpoint <file>  --checkpoint-out <file>  --help
+//          --base-extension-hours <h>  --no-base  --json  --checkpoint <file>  --checkpoint-out <file>  --cache-proof  --help
 //          (SOLANA_RPC_URL and BASE_RPC_URL are read too)
 // Bundled, unminified, from ByKaranteli's src/scripts/byk-verify.ts with viem and @solana/web3.js; their
 // licences are at the end of this file. Protocol: BYK Data Layer v1.0.0-rc6. https://bykaranteli.com/proof
@@ -22466,7 +22466,7 @@ var require_index_cjs = __commonJS({
       return value._bn !== void 0;
     }
     var uniquePublicKeyCounter = 1;
-    var PublicKey2 = class _PublicKey2 extends Struct {
+    var PublicKey3 = class _PublicKey2 extends Struct {
       /**
        * Create a new PublicKey object
        * @param value ed25519 public key as buffer or base-58 encoded string
@@ -22628,9 +22628,9 @@ var require_index_cjs = __commonJS({
         return isOnCurve(pubkey.toBytes());
       }
     };
-    _PublicKey = PublicKey2;
-    PublicKey2.default = new _PublicKey("11111111111111111111111111111111");
-    SOLANA_SCHEMA.set(PublicKey2, {
+    _PublicKey = PublicKey3;
+    PublicKey3.default = new _PublicKey("11111111111111111111111111111111");
+    SOLANA_SCHEMA.set(PublicKey3, {
       kind: "struct",
       fields: [["_bn", "u256"]]
     });
@@ -22662,7 +22662,7 @@ var require_index_cjs = __commonJS({
        * The public key for this account
        */
       get publicKey() {
-        return new PublicKey2(this._publicKey);
+        return new PublicKey3(this._publicKey);
       }
       /**
        * The **unencrypted** secret key for this account. The first 32 bytes
@@ -22673,7 +22673,7 @@ var require_index_cjs = __commonJS({
         return buffer2.Buffer.concat([this._secretKey, this._publicKey], 64);
       }
     };
-    var BPF_LOADER_DEPRECATED_PROGRAM_ID = new PublicKey2("BPFLoader1111111111111111111111111111111111");
+    var BPF_LOADER_DEPRECATED_PROGRAM_ID = new PublicKey3("BPFLoader1111111111111111111111111111111111");
     var PACKET_DATA_SIZE = 1280 - 40 - 8;
     var VERSION_PREFIX_MASK = 127;
     var SIGNATURE_LENGTH_IN_BYTES = 64;
@@ -22906,7 +22906,7 @@ var require_index_cjs = __commonJS({
           const [payerAddress] = writableSigners[0];
           assert8(payerAddress === this.payer.toBase58(), "Expected first writable signer key to be the fee payer");
         }
-        const staticAccountKeys = [...writableSigners.map(([address]) => new PublicKey2(address)), ...readonlySigners.map(([address]) => new PublicKey2(address)), ...writableNonSigners.map(([address]) => new PublicKey2(address)), ...readonlyNonSigners.map(([address]) => new PublicKey2(address))];
+        const staticAccountKeys = [...writableSigners.map(([address]) => new PublicKey3(address)), ...readonlySigners.map(([address]) => new PublicKey3(address)), ...writableNonSigners.map(([address]) => new PublicKey3(address)), ...readonlyNonSigners.map(([address]) => new PublicKey3(address))];
         return [header, staticAccountKeys];
       }
       extractTableLookup(lookupTable) {
@@ -22930,7 +22930,7 @@ var require_index_cjs = __commonJS({
         const drainedKeys = new Array();
         for (const [address, keyMeta] of this.keyMetaMap.entries()) {
           if (keyMetaFilter(keyMeta)) {
-            const key = new PublicKey2(address);
+            const key = new PublicKey3(address);
             const lookupTableIndex = lookupTableEntries.findIndex((entry) => entry.equals(key));
             if (lookupTableIndex >= 0) {
               assert8(lookupTableIndex < 256, "Max lookup table index exceeded");
@@ -22965,7 +22965,7 @@ var require_index_cjs = __commonJS({
         this.instructions = void 0;
         this.indexToProgramIds = /* @__PURE__ */ new Map();
         this.header = args.header;
-        this.accountKeys = args.accountKeys.map((account) => new PublicKey2(account));
+        this.accountKeys = args.accountKeys.map((account) => new PublicKey3(account));
         this.recentBlockhash = args.recentBlockhash;
         this.instructions = args.instructions;
         this.instructions.forEach((ix) => this.indexToProgramIds.set(ix.programIdIndex, this.accountKeys[ix.programIdIndex]));
@@ -23091,7 +23091,7 @@ var require_index_cjs = __commonJS({
         let accountKeys = [];
         for (let i = 0; i < accountCount; i++) {
           const account = guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH);
-          accountKeys.push(new PublicKey2(buffer2.Buffer.from(account)));
+          accountKeys.push(new PublicKey3(buffer2.Buffer.from(account)));
         }
         const recentBlockhash = guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH);
         const instructionCount = decodeLength(byteArray);
@@ -23315,7 +23315,7 @@ var require_index_cjs = __commonJS({
         const staticAccountKeys = [];
         const staticAccountKeysLength = decodeLength(byteArray);
         for (let i = 0; i < staticAccountKeysLength; i++) {
-          staticAccountKeys.push(new PublicKey2(guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH)));
+          staticAccountKeys.push(new PublicKey3(guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH)));
         }
         const recentBlockhash = bs58__default.default.encode(guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH));
         const instructionCount = decodeLength(byteArray);
@@ -23335,7 +23335,7 @@ var require_index_cjs = __commonJS({
         const addressTableLookupsCount = decodeLength(byteArray);
         const addressTableLookups = [];
         for (let i = 0; i < addressTableLookupsCount; i++) {
-          const accountKey = new PublicKey2(guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH));
+          const accountKey = new PublicKey3(guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH));
           const writableIndexesLength = decodeLength(byteArray);
           const writableIndexes = guardedSplice(byteArray, 0, writableIndexesLength);
           const readonlyIndexesLength = decodeLength(byteArray);
@@ -23441,7 +23441,7 @@ var require_index_cjs = __commonJS({
         const staticAccountKeysLength = guardedShift(byteArray);
         const staticAccountKeys = [];
         for (let i = 0; i < staticAccountKeysLength; i++) {
-          staticAccountKeys.push(new PublicKey2(guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH)));
+          staticAccountKeys.push(new PublicKey3(guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH)));
         }
         const transactionConfig = {
           computeUnitLimit: null,
@@ -23712,7 +23712,7 @@ var require_index_cjs = __commonJS({
         });
         programIds.forEach((programId) => {
           accountMetas.push({
-            pubkey: new PublicKey2(programId),
+            pubkey: new PublicKey3(programId),
             isSigner: false,
             isWritable: false
           });
@@ -24321,15 +24321,15 @@ Missing signature for public key${sigErrors.missing.length === 1 ? "" : "(s)"} [
     var DEFAULT_TICKS_PER_SLOT = 64;
     var NUM_SLOTS_PER_SECOND = NUM_TICKS_PER_SECOND / DEFAULT_TICKS_PER_SLOT;
     var MS_PER_SLOT = 1e3 / NUM_SLOTS_PER_SECOND;
-    var SYSVAR_CLOCK_PUBKEY = new PublicKey2("SysvarC1ock11111111111111111111111111111111");
-    var SYSVAR_EPOCH_SCHEDULE_PUBKEY = new PublicKey2("SysvarEpochSchedu1e111111111111111111111111");
-    var SYSVAR_INSTRUCTIONS_PUBKEY = new PublicKey2("Sysvar1nstructions1111111111111111111111111");
-    var SYSVAR_RECENT_BLOCKHASHES_PUBKEY = new PublicKey2("SysvarRecentB1ockHashes11111111111111111111");
-    var SYSVAR_RENT_PUBKEY = new PublicKey2("SysvarRent111111111111111111111111111111111");
-    var SYSVAR_REWARDS_PUBKEY = new PublicKey2("SysvarRewards111111111111111111111111111111");
-    var SYSVAR_SLOT_HASHES_PUBKEY = new PublicKey2("SysvarS1otHashes111111111111111111111111111");
-    var SYSVAR_SLOT_HISTORY_PUBKEY = new PublicKey2("SysvarS1otHistory11111111111111111111111111");
-    var SYSVAR_STAKE_HISTORY_PUBKEY = new PublicKey2("SysvarStakeHistory1111111111111111111111111");
+    var SYSVAR_CLOCK_PUBKEY = new PublicKey3("SysvarC1ock11111111111111111111111111111111");
+    var SYSVAR_EPOCH_SCHEDULE_PUBKEY = new PublicKey3("SysvarEpochSchedu1e111111111111111111111111");
+    var SYSVAR_INSTRUCTIONS_PUBKEY = new PublicKey3("Sysvar1nstructions1111111111111111111111111");
+    var SYSVAR_RECENT_BLOCKHASHES_PUBKEY = new PublicKey3("SysvarRecentB1ockHashes11111111111111111111");
+    var SYSVAR_RENT_PUBKEY = new PublicKey3("SysvarRent111111111111111111111111111111111");
+    var SYSVAR_REWARDS_PUBKEY = new PublicKey3("SysvarRewards111111111111111111111111111111");
+    var SYSVAR_SLOT_HASHES_PUBKEY = new PublicKey3("SysvarS1otHashes111111111111111111111111111");
+    var SYSVAR_SLOT_HISTORY_PUBKEY = new PublicKey3("SysvarS1otHistory11111111111111111111111111");
+    var SYSVAR_STAKE_HISTORY_PUBKEY = new PublicKey3("SysvarStakeHistory1111111111111111111111111");
     var SendTransactionError = class extends Error {
       constructor({
         action,
@@ -24520,8 +24520,8 @@ Message: ${transactionMessage}.
       static fromAccountData(buffer3) {
         const nonceAccount = NonceAccountLayout.decode(toBuffer(buffer3), 0);
         return new _NonceAccount({
-          authorizedPubkey: new PublicKey2(nonceAccount.authorizedPubkey),
-          nonce: new PublicKey2(nonceAccount.nonce).toString(),
+          authorizedPubkey: new PublicKey3(nonceAccount.authorizedPubkey),
+          nonce: new PublicKey3(nonceAccount.nonce).toString(),
           feeCalculator: nonceAccount.feeCalculator
         });
       }
@@ -24583,7 +24583,7 @@ Message: ${transactionMessage}.
           newAccountPubkey: instruction.keys[1].pubkey,
           lamports,
           space,
-          programId: new PublicKey2(programId)
+          programId: new PublicKey3(programId)
         };
       }
       /**
@@ -24618,7 +24618,7 @@ Message: ${transactionMessage}.
           toPubkey: instruction.keys[2].pubkey,
           lamports,
           seed,
-          programId: new PublicKey2(programId)
+          programId: new PublicKey3(programId)
         };
       }
       /**
@@ -24649,10 +24649,10 @@ Message: ${transactionMessage}.
         } = decodeData$1(SYSTEM_INSTRUCTION_LAYOUTS.AllocateWithSeed, instruction.data);
         return {
           accountPubkey: instruction.keys[0].pubkey,
-          basePubkey: new PublicKey2(base2),
+          basePubkey: new PublicKey3(base2),
           seed,
           space,
-          programId: new PublicKey2(programId)
+          programId: new PublicKey3(programId)
         };
       }
       /**
@@ -24666,7 +24666,7 @@ Message: ${transactionMessage}.
         } = decodeData$1(SYSTEM_INSTRUCTION_LAYOUTS.Assign, instruction.data);
         return {
           accountPubkey: instruction.keys[0].pubkey,
-          programId: new PublicKey2(programId)
+          programId: new PublicKey3(programId)
         };
       }
       /**
@@ -24682,9 +24682,9 @@ Message: ${transactionMessage}.
         } = decodeData$1(SYSTEM_INSTRUCTION_LAYOUTS.AssignWithSeed, instruction.data);
         return {
           accountPubkey: instruction.keys[0].pubkey,
-          basePubkey: new PublicKey2(base2),
+          basePubkey: new PublicKey3(base2),
           seed,
-          programId: new PublicKey2(programId)
+          programId: new PublicKey3(programId)
         };
       }
       /**
@@ -24703,11 +24703,11 @@ Message: ${transactionMessage}.
         return {
           fromPubkey: instruction.keys[0].pubkey,
           newAccountPubkey: instruction.keys[1].pubkey,
-          basePubkey: new PublicKey2(base2),
+          basePubkey: new PublicKey3(base2),
           seed,
           lamports,
           space,
-          programId: new PublicKey2(programId)
+          programId: new PublicKey3(programId)
         };
       }
       /**
@@ -24721,7 +24721,7 @@ Message: ${transactionMessage}.
         } = decodeData$1(SYSTEM_INSTRUCTION_LAYOUTS.InitializeNonceAccount, instruction.data);
         return {
           noncePubkey: instruction.keys[0].pubkey,
-          authorizedPubkey: new PublicKey2(authorized3)
+          authorizedPubkey: new PublicKey3(authorized3)
         };
       }
       /**
@@ -24764,7 +24764,7 @@ Message: ${transactionMessage}.
         return {
           noncePubkey: instruction.keys[0].pubkey,
           authorizedPubkey: instruction.keys[1].pubkey,
-          newAuthorizedPubkey: new PublicKey2(authorized3)
+          newAuthorizedPubkey: new PublicKey3(authorized3)
         };
       }
       /**
@@ -25173,7 +25173,7 @@ Message: ${transactionMessage}.
         });
       }
     };
-    SystemProgram2.programId = new PublicKey2("11111111111111111111111111111111");
+    SystemProgram2.programId = new PublicKey3("11111111111111111111111111111111");
     var CHUNK_SIZE = PACKET_DATA_SIZE - 300;
     var Loader = class _Loader {
       /**
@@ -25340,7 +25340,7 @@ Message: ${transactionMessage}.
       }
     };
     Loader.chunkSize = CHUNK_SIZE;
-    var BPF_LOADER_PROGRAM_ID = new PublicKey2("BPFLoader2111111111111111111111111111111111");
+    var BPF_LOADER_PROGRAM_ID = new PublicKey3("BPFLoader2111111111111111111111111111111111");
     var BpfLoader = class {
       /**
        * Minimum number of signatures required to load a program not including
@@ -26138,8 +26138,8 @@ Message: ${transactionMessage}.
           deactivationSlot: meta.deactivationSlot,
           lastExtendedSlot: meta.lastExtendedSlot,
           lastExtendedSlotStartIndex: meta.lastExtendedStartIndex,
-          authority: meta.authority.length !== 0 ? new PublicKey2(meta.authority[0]) : void 0,
-          addresses: addresses.map((address) => new PublicKey2(address))
+          authority: meta.authority.length !== 0 ? new PublicKey3(meta.authority[0]) : void 0,
+          addresses: addresses.map((address) => new PublicKey3(address))
         };
       }
     };
@@ -26181,7 +26181,7 @@ Message: ${transactionMessage}.
       );
       return `${protocol}//${hostish}${websocketPort}${rest}`;
     }
-    var PublicKeyFromString = superstruct.coerce(superstruct.instance(PublicKey2), superstruct.string(), (value) => new PublicKey2(value));
+    var PublicKeyFromString = superstruct.coerce(superstruct.instance(PublicKey3), superstruct.string(), (value) => new PublicKey3(value));
     var RawAccountDataResult = superstruct.tuple([superstruct.string(), superstruct.literal("base64")]);
     var BufferFromRawAccountData = superstruct.coerce(superstruct.instance(buffer2.Buffer), RawAccountDataResult, (value) => buffer2.Buffer.from(value[0], "base64"));
     var BLOCKHASH_CACHE_TIMEOUT_MS = 30 * 1e3;
@@ -26266,7 +26266,7 @@ Message: ${transactionMessage}.
       if (version6 === 0) {
         return new MessageV0({
           header: response.header,
-          staticAccountKeys: response.accountKeys.map((accountKey) => new PublicKey2(accountKey)),
+          staticAccountKeys: response.accountKeys.map((accountKey) => new PublicKey3(accountKey)),
           recentBlockhash: response.recentBlockhash,
           compiledInstructions: response.instructions.map((ix) => ({
             programIdIndex: ix.programIdIndex,
@@ -26282,7 +26282,7 @@ Message: ${transactionMessage}.
         }
         return new MessageV1({
           header: response.header,
-          staticAccountKeys: response.accountKeys.map((accountKey) => new PublicKey2(accountKey)),
+          staticAccountKeys: response.accountKeys.map((accountKey) => new PublicKey3(accountKey)),
           recentBlockhash: response.recentBlockhash,
           compiledInstructions: response.instructions.map((ix) => ({
             programIdIndex: ix.programIdIndex,
@@ -29730,7 +29730,7 @@ Message: ${transactionMessage}.
        * @returns {PublicKey} PublicKey
        */
       get publicKey() {
-        return new PublicKey2(this._keypair.publicKey);
+        return new PublicKey3(this._keypair.publicKey);
       }
       /**
        * The raw secret key for this keypair
@@ -29808,7 +29808,7 @@ Message: ${transactionMessage}.
           lookupTable: instruction.keys[0].pubkey,
           authority: instruction.keys[1].pubkey,
           payer: instruction.keys.length > 2 ? instruction.keys[2].pubkey : void 0,
-          addresses: addresses.map((buffer3) => new PublicKey2(buffer3))
+          addresses: addresses.map((buffer3) => new PublicKey3(buffer3))
         };
       }
       static decodeCloseLookupTable(instruction) {
@@ -29860,7 +29860,7 @@ Message: ${transactionMessage}.
       constructor() {
       }
       static createLookupTable(params) {
-        const [lookupTableAddress, bumpSeed] = PublicKey2.findProgramAddressSync([params.authority.toBuffer(), codecsNumbers.getU64Encoder().encode(params.recentSlot)], this.programId);
+        const [lookupTableAddress, bumpSeed] = PublicKey3.findProgramAddressSync([params.authority.toBuffer(), codecsNumbers.getU64Encoder().encode(params.recentSlot)], this.programId);
         const type = LOOKUP_TABLE_INSTRUCTION_LAYOUTS.CreateLookupTable;
         const data = encodeData3(type, {
           recentSlot: BigInt(params.recentSlot),
@@ -29979,7 +29979,7 @@ Message: ${transactionMessage}.
         });
       }
     };
-    AddressLookupTableProgram.programId = new PublicKey2("AddressLookupTab1e1111111111111111111111111");
+    AddressLookupTableProgram.programId = new PublicKey3("AddressLookupTab1e1111111111111111111111111");
     var ComputeBudgetInstruction = class {
       /**
        * @internal
@@ -30133,7 +30133,7 @@ Message: ${transactionMessage}.
         });
       }
     };
-    ComputeBudgetProgram2.programId = new PublicKey2("ComputeBudget111111111111111111111111111111");
+    ComputeBudgetProgram2.programId = new PublicKey3("ComputeBudget111111111111111111111111111111");
     var PRIVATE_KEY_BYTES$1 = 64;
     var PUBLIC_KEY_BYTES$1 = 32;
     var SIGNATURE_BYTES = 64;
@@ -30213,7 +30213,7 @@ Message: ${transactionMessage}.
         }
       }
     };
-    Ed25519Program.programId = new PublicKey2("Ed25519SigVerify111111111111111111111111111");
+    Ed25519Program.programId = new PublicKey3("Ed25519SigVerify111111111111111111111111111");
     var ecdsaSign = (msgHash, privKey) => {
       const signature2 = secp256k14.secp256k1.sign(msgHash, privKey);
       return [signature2.toCompactRawBytes(), signature2.recovery];
@@ -30347,9 +30347,9 @@ Message: ${transactionMessage}.
         }
       }
     };
-    Secp256k1Program.programId = new PublicKey2("KeccakSecp256k11111111111111111111111111111");
+    Secp256k1Program.programId = new PublicKey3("KeccakSecp256k11111111111111111111111111111");
     var _Lockup;
-    var STAKE_CONFIG_ID = new PublicKey2("StakeConfig11111111111111111111111111111111");
+    var STAKE_CONFIG_ID = new PublicKey3("StakeConfig11111111111111111111111111111111");
     var Authorized = class {
       /**
        * Create a new Authorized object
@@ -30380,7 +30380,7 @@ Message: ${transactionMessage}.
        */
     };
     _Lockup = Lockup;
-    Lockup.default = new _Lockup(0, 0, PublicKey2.default);
+    Lockup.default = new _Lockup(0, 0, PublicKey3.default);
     var StakeInstruction = class {
       /**
        * @internal
@@ -30418,8 +30418,8 @@ Message: ${transactionMessage}.
         } = decodeData$1(STAKE_INSTRUCTION_LAYOUTS.Initialize, instruction.data);
         return {
           stakePubkey: instruction.keys[0].pubkey,
-          authorized: new Authorized(new PublicKey2(authorized3.staker), new PublicKey2(authorized3.withdrawer)),
-          lockup: new Lockup(lockup2.unixTimestamp, lockup2.epoch, new PublicKey2(lockup2.custodian))
+          authorized: new Authorized(new PublicKey3(authorized3.staker), new PublicKey3(authorized3.withdrawer)),
+          lockup: new Lockup(lockup2.unixTimestamp, lockup2.epoch, new PublicKey3(lockup2.custodian))
         };
       }
       /**
@@ -30448,7 +30448,7 @@ Message: ${transactionMessage}.
         const o = {
           stakePubkey: instruction.keys[0].pubkey,
           authorizedPubkey: instruction.keys[2].pubkey,
-          newAuthorizedPubkey: new PublicKey2(newAuthorized),
+          newAuthorizedPubkey: new PublicKey3(newAuthorized),
           stakeAuthorizationType: {
             index: stakeAuthorizationType
           }
@@ -30474,8 +30474,8 @@ Message: ${transactionMessage}.
           stakePubkey: instruction.keys[0].pubkey,
           authorityBase: instruction.keys[1].pubkey,
           authoritySeed,
-          authorityOwner: new PublicKey2(authorityOwner),
-          newAuthorizedPubkey: new PublicKey2(newAuthorized),
+          authorityOwner: new PublicKey3(authorityOwner),
+          newAuthorizedPubkey: new PublicKey3(newAuthorized),
           stakeAuthorizationType: {
             index: stakeAuthorizationType
           }
@@ -31029,7 +31029,7 @@ Message: ${transactionMessage}.
         });
       }
     };
-    StakeProgram.programId = new PublicKey2("Stake11111111111111111111111111111111111111");
+    StakeProgram.programId = new PublicKey3("Stake11111111111111111111111111111111111111");
     StakeProgram.space = 200;
     var VoteInit = class {
       /** [0, 100] */
@@ -31081,7 +31081,7 @@ Message: ${transactionMessage}.
         return {
           votePubkey: instruction.keys[0].pubkey,
           nodePubkey: instruction.keys[3].pubkey,
-          voteInit: new VoteInit(new PublicKey2(voteInit2.nodePubkey), new PublicKey2(voteInit2.authorizedVoter), new PublicKey2(voteInit2.authorizedWithdrawer), voteInit2.commission)
+          voteInit: new VoteInit(new PublicKey3(voteInit2.nodePubkey), new PublicKey3(voteInit2.authorizedVoter), new PublicKey3(voteInit2.authorizedWithdrawer), voteInit2.commission)
         };
       }
       /**
@@ -31097,7 +31097,7 @@ Message: ${transactionMessage}.
         return {
           votePubkey: instruction.keys[0].pubkey,
           authorizedPubkey: instruction.keys[2].pubkey,
-          newAuthorizedPubkey: new PublicKey2(newAuthorized),
+          newAuthorizedPubkey: new PublicKey3(newAuthorized),
           voteAuthorizationType: {
             index: voteAuthorizationType
           }
@@ -31119,9 +31119,9 @@ Message: ${transactionMessage}.
         } = decodeData$1(VOTE_INSTRUCTION_LAYOUTS.AuthorizeWithSeed, instruction.data);
         return {
           currentAuthorityDerivedKeyBasePubkey: instruction.keys[2].pubkey,
-          currentAuthorityDerivedKeyOwnerPubkey: new PublicKey2(currentAuthorityDerivedKeyOwnerPubkey),
+          currentAuthorityDerivedKeyOwnerPubkey: new PublicKey3(currentAuthorityDerivedKeyOwnerPubkey),
           currentAuthorityDerivedKeySeed,
-          newAuthorizedPubkey: new PublicKey2(newAuthorized),
+          newAuthorizedPubkey: new PublicKey3(newAuthorized),
           voteAuthorizationType: {
             index: voteAuthorizationType
           },
@@ -31412,9 +31412,9 @@ Message: ${transactionMessage}.
         });
       }
     };
-    VoteProgram.programId = new PublicKey2("Vote111111111111111111111111111111111111111");
+    VoteProgram.programId = new PublicKey3("Vote111111111111111111111111111111111111111");
     VoteProgram.space = 3762;
-    var VALIDATOR_INFO_KEY = new PublicKey2("Va1idator1nfo111111111111111111111111111111");
+    var VALIDATOR_INFO_KEY = new PublicKey3("Va1idator1nfo111111111111111111111111111111");
     var InfoString = superstruct.type({
       name: superstruct.string(),
       website: superstruct.optional(superstruct.string()),
@@ -31448,7 +31448,7 @@ Message: ${transactionMessage}.
         if (configKeyCount !== 2) return null;
         const configKeys = [];
         for (let i = 0; i < 2; i++) {
-          const publicKey2 = new PublicKey2(guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH));
+          const publicKey2 = new PublicKey3(guardedSplice(byteArray, 0, PUBLIC_KEY_LENGTH));
           const isSigner = guardedShift(byteArray) === 1;
           configKeys.push({
             publicKey: publicKey2,
@@ -31466,7 +31466,7 @@ Message: ${transactionMessage}.
         return null;
       }
     };
-    var VOTE_PROGRAM_ID = new PublicKey2("Vote111111111111111111111111111111111111111");
+    var VOTE_PROGRAM_ID = new PublicKey3("Vote111111111111111111111111111111111111111");
     var VoteAccountLayout = BufferLayout__namespace.struct([
       publicKey("nodePubkey"),
       publicKey("authorizedWithdrawer"),
@@ -31523,8 +31523,8 @@ Message: ${transactionMessage}.
           rootSlot = null;
         }
         return new _VoteAccount({
-          nodePubkey: new PublicKey2(va.nodePubkey),
-          authorizedWithdrawer: new PublicKey2(va.authorizedWithdrawer),
+          nodePubkey: new PublicKey3(va.nodePubkey),
+          authorizedWithdrawer: new PublicKey3(va.authorizedWithdrawer),
           commission: va.commission,
           votes: va.votes,
           rootSlot,
@@ -31541,7 +31541,7 @@ Message: ${transactionMessage}.
     }) {
       return {
         epoch,
-        authorizedVoter: new PublicKey2(authorizedVoter)
+        authorizedVoter: new PublicKey3(authorizedVoter)
       };
     }
     function parsePriorVoters({
@@ -31550,7 +31550,7 @@ Message: ${transactionMessage}.
       targetEpoch
     }) {
       return {
-        authorizedPubkey: new PublicKey2(authorizedPubkey),
+        authorizedPubkey: new PublicKey3(authorizedPubkey),
         epochOfLastAuthorizedSwitch,
         targetEpoch
       };
@@ -31653,7 +31653,7 @@ Message: ${transactionMessage}.
     exports.NonceAccount = NonceAccount;
     exports.PACKET_DATA_SIZE = PACKET_DATA_SIZE;
     exports.PUBLIC_KEY_LENGTH = PUBLIC_KEY_LENGTH;
-    exports.PublicKey = PublicKey2;
+    exports.PublicKey = PublicKey3;
     exports.SIGNATURE_LENGTH_IN_BYTES = SIGNATURE_LENGTH_IN_BYTES;
     exports.SOLANA_SCHEMA = SOLANA_SCHEMA;
     exports.STAKE_CONFIG_ID = STAKE_CONFIG_ID;
@@ -41729,7 +41729,7 @@ var init_call = __esm({
 });
 
 // src/scripts/byk-verify.ts
-var import_web32 = __toESM(require_index_cjs());
+var import_web33 = __toESM(require_index_cjs());
 import { readFileSync, writeFileSync } from "node:fs";
 
 // src/lib/byk/bytes.ts
@@ -55828,10 +55828,145 @@ async function blockAtOrBefore(n, timeMs, marginBlocks = BigInt(900)) {
   return guess > BigInt(0) ? guess : BigInt(0);
 }
 
+// src/lib/byk-chain/cache-proof.ts
+var import_web32 = __toESM(require_index_cjs());
+
+// src/lib/byk-chain/solana.ts
+var import_web3 = __toESM(require_index_cjs());
+var MEMO_PROGRAM = new import_web3.PublicKey(SPL_MEMO_PROGRAM_ID);
+var SOLANA_DEVNET_RPC = "https://api.devnet.solana.com";
+function admissiblePayload(tx, witnessKey2, streamId) {
+  if (!tx.meta || tx.meta.err !== null) return null;
+  const keys = tx.transaction.message.staticAccountKeys;
+  if (!keys.some((k) => equal(k.toBytes(), witnessKey2))) return null;
+  const memos = tx.transaction.message.compiledInstructions.filter((ix) => keys[ix.programIdIndex]?.equals(MEMO_PROGRAM));
+  if (memos.length !== 1) return null;
+  const data = memos[0].data;
+  for (const b of data) if (b > 126 || b < 32) return null;
+  const payload = parseMemo(Buffer.from(data).toString("ascii"));
+  if (!payload) return null;
+  const expected = witnessKeyOf(payload, streamId);
+  return expected && equal(expected, witnessKey2) ? payload : null;
+}
+async function readAnchors(conn, witnessKey2, streamId, opts = {}) {
+  const address = new import_web3.PublicKey(witnessKey2);
+  const max = opts.maxSignatures ?? 200;
+  const out = [];
+  let before;
+  let examined = 0;
+  let inadmissible = 0;
+  let complete = true;
+  let newestSignature = null;
+  for (; ; ) {
+    const page = await conn.getSignaturesForAddress(address, { before, limit: 100 }, "finalized");
+    for (const s of page) {
+      examined++;
+      if (opts.asOfSlot !== void 0 && s.slot > opts.asOfSlot) continue;
+      if (newestSignature === null) newestSignature = s.signature;
+      if (s.err !== null) continue;
+      const tx = await conn.getTransaction(s.signature, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+      if (!tx) {
+        complete = false;
+        continue;
+      }
+      const payload = admissiblePayload(tx, witnessKey2, streamId);
+      if (payload) out.push({ signature: s.signature, slot: s.slot, blockTimeSec: tx.blockTime ?? s.blockTime ?? null, payload });
+      else inadmissible++;
+    }
+    if (page.length < 100) break;
+    if (examined >= max) {
+      complete = false;
+      break;
+    }
+    before = page[page.length - 1].signature;
+  }
+  out.sort((a, b) => a.slot - b.slot);
+  return { anchors: out, complete, examined, inadmissible, newestSignature };
+}
+async function assertSolanaNetwork(conn, solanaGenesisHash) {
+  const got = await conn.getGenesisHash();
+  if (got !== base58Encode(solanaGenesisHash)) throw new Error("RPC endpoint is not the Solana network named in the genesis core");
+}
+var witnessAddress = (witnessKey2) => base58Encode(witnessKey2);
+
+// src/lib/byk-chain/cache-proof.ts
+var CACHE_PROOF_MAX_NEW = 1e3;
+var PAGE = 100;
+function unprovable(reason, newest) {
+  return { proven: false, checked: 0, changed: 0, inadmissible: 0, calls: 0, reason, sequence: null, newest: [...newest] };
+}
+function assembleNewestList(cachedPart, from15, through, read) {
+  if (cachedPart === null || cachedPart.length < Number(from15) || through < from15) return null;
+  const list = cachedPart.slice(0, Number(from15));
+  for (let s = from15; s <= through; s += BigInt(1)) {
+    if (!read.has(s)) return null;
+    list.push(read.get(s) ?? null);
+  }
+  return list;
+}
+async function proveCachedSequences(conn, streamId, stored, through, opts = {}) {
+  const maxNew = opts.maxNew ?? CACHE_PROOF_MAX_NEW;
+  const judge = opts.judge ?? ((tx, key) => admissiblePayload(tx, key, streamId));
+  const newest = [...stored];
+  let calls = 0;
+  let changed = 0;
+  let inadmissible = 0;
+  let checked = 0;
+  const fail = (sequence, reason) => ({ proven: false, checked, changed, inadmissible, calls, reason, sequence: sequence.toString(), newest });
+  for (let s = BigInt(0); s < through; s += BigInt(1)) {
+    const i = Number(s);
+    const sig = stored[i];
+    if (typeof sig !== "string" || sig.length === 0) return fail(s, `the checkpoint records no newest transaction for sequence ${s}; a full run with --checkpoint-out records every key`);
+    const key = witnessKey(streamId, WITNESS_KIND.DATA, s);
+    const address = new import_web32.PublicKey(key);
+    const head = await conn.getSignaturesForAddress(address, { limit: 1 }, "finalized");
+    calls++;
+    checked++;
+    if (head.length === 0) return fail(s, `sequence ${s} lists no transaction on this endpoint although the checkpoint saw one: the history is missing here, use an archive endpoint`);
+    const top = head[0].signature;
+    if (top !== sig) {
+      changed++;
+      const storedTx = await conn.getTransaction(sig, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+      calls++;
+      if (!storedTx) return fail(s, `the transaction the checkpoint recorded for sequence ${s} (${sig}) is not retrievable on this endpoint: the history is missing here, use an archive endpoint`);
+      let before;
+      let examined = 0;
+      let done = false;
+      while (!done) {
+        const page = await conn.getSignaturesForAddress(address, { until: sig, before, limit: PAGE }, "finalized");
+        calls++;
+        for (const x of page) {
+          if (x.signature === sig) {
+            done = true;
+            break;
+          }
+          examined++;
+          if (x.err !== null) {
+            inadmissible++;
+            continue;
+          }
+          const tx = await conn.getTransaction(x.signature, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+          calls++;
+          if (!tx) return fail(s, `transaction ${x.signature} under sequence ${s} is listed but not retrievable on this endpoint`);
+          if (judge(tx, key)) return fail(s, `sequence ${s} has a new admissible anchor since the run that wrote the checkpoint (${x.signature}): the cached verdict may differ from a full evaluation, run without --checkpoint`);
+          inadmissible++;
+        }
+        if (examined > maxNew) return fail(s, `more than ${maxNew} new transactions under sequence ${s} since the checkpoint: not bounded, run without --checkpoint`);
+        if (page.length < PAGE) done = true;
+        if (!done) before = page[page.length - 1].signature;
+      }
+      newest[i] = top;
+    }
+    if (opts.onKey) await opts.onKey(s);
+  }
+  return { proven: true, checked, changed, inadmissible, calls, reason: null, sequence: null, newest };
+}
+
 // src/lib/byk-chain/checkpoint.ts
 var CHECKPOINT_BASE_REWIND = BigInt(1800);
 var HEX64 = /^(0x)?[0-9a-f]{64}$/i;
 var DIGITS = /^\d+$/;
+var BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,128}$/;
 function parseCheckpoint(text, streamHex, network, label = "--checkpoint") {
   let raw;
   try {
@@ -55848,6 +55983,10 @@ function parseCheckpoint(text, streamHex, network, label = "--checkpoint") {
   if (cp.base_fixed_windows !== void 0 && typeof cp.base_fixed_windows !== "boolean") throw new Error(`${label}: base_fixed_windows is malformed`);
   if (cp.al_head !== void 0 && cp.al_head !== null) {
     if (typeof cp.al_head !== "object" || !DIGITS.test(String(cp.al_head.log_seq)) || !HEX64.test(String(cp.al_head.entry_hash))) throw new Error(`${label}: al_head is malformed`);
+  }
+  if (cp.newest_signatures !== void 0 && cp.newest_signatures !== null) {
+    const list = cp.newest_signatures;
+    if (!Array.isArray(list) || list.length !== Number(cp.sequence) + 1 || !list.every((x) => x === null || typeof x === "string" && BASE58.test(x))) throw new Error(`${label}: newest_signatures is malformed (one base58 signature or null per sequence from 0 to ${cp.sequence})`);
   }
   return cp;
 }
@@ -55891,62 +56030,6 @@ function endpointHost(url) {
 function oneLine(text, max = 200) {
   return redactUrls(text).replace(/\s+/g, " ").trim().slice(0, max);
 }
-
-// src/lib/byk-chain/solana.ts
-var import_web3 = __toESM(require_index_cjs());
-var MEMO_PROGRAM = new import_web3.PublicKey(SPL_MEMO_PROGRAM_ID);
-var SOLANA_DEVNET_RPC = "https://api.devnet.solana.com";
-function admissiblePayload(tx, witnessKey2, streamId) {
-  if (!tx.meta || tx.meta.err !== null) return null;
-  const keys = tx.transaction.message.staticAccountKeys;
-  if (!keys.some((k) => equal(k.toBytes(), witnessKey2))) return null;
-  const memos = tx.transaction.message.compiledInstructions.filter((ix) => keys[ix.programIdIndex]?.equals(MEMO_PROGRAM));
-  if (memos.length !== 1) return null;
-  const data = memos[0].data;
-  for (const b of data) if (b > 126 || b < 32) return null;
-  const payload = parseMemo(Buffer.from(data).toString("ascii"));
-  if (!payload) return null;
-  const expected = witnessKeyOf(payload, streamId);
-  return expected && equal(expected, witnessKey2) ? payload : null;
-}
-async function readAnchors(conn, witnessKey2, streamId, opts = {}) {
-  const address = new import_web3.PublicKey(witnessKey2);
-  const max = opts.maxSignatures ?? 200;
-  const out = [];
-  let before;
-  let examined = 0;
-  let inadmissible = 0;
-  let complete = true;
-  for (; ; ) {
-    const page = await conn.getSignaturesForAddress(address, { before, limit: 100 }, "finalized");
-    for (const s of page) {
-      examined++;
-      if (s.err !== null) continue;
-      if (opts.asOfSlot !== void 0 && s.slot > opts.asOfSlot) continue;
-      const tx = await conn.getTransaction(s.signature, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
-      if (!tx) {
-        complete = false;
-        continue;
-      }
-      const payload = admissiblePayload(tx, witnessKey2, streamId);
-      if (payload) out.push({ signature: s.signature, slot: s.slot, blockTimeSec: tx.blockTime ?? s.blockTime ?? null, payload });
-      else inadmissible++;
-    }
-    if (page.length < 100) break;
-    if (examined >= max) {
-      complete = false;
-      break;
-    }
-    before = page[page.length - 1].signature;
-  }
-  out.sort((a, b) => a.slot - b.slot);
-  return { anchors: out, complete, examined, inadmissible };
-}
-async function assertSolanaNetwork(conn, solanaGenesisHash) {
-  const got = await conn.getGenesisHash();
-  if (got !== base58Encode(solanaGenesisHash)) throw new Error("RPC endpoint is not the Solana network named in the genesis core");
-}
-var witnessAddress = (witnessKey2) => base58Encode(witnessKey2);
 
 // src/lib/byk-chain/windows.ts
 var sec = (t) => BigInt(Math.trunc(t)) * BigInt(1e3);
@@ -56010,6 +56093,11 @@ var USAGE = `byk-verify: independent verifier of a BYK Data Layer stream (reads 
     --no-base                 skip the Base witness (the verdict rests on Solana under the beta profile)
     --checkpoint <file>       continue from a checkpoint written by an earlier run (--checkpoint-out)
     --checkpoint-out <file>   after a run that passed, write the last CANONICAL sequence for the next run
+    --cache-proof             with --checkpoint: ask every data witness key before the checkpoint for its newest
+                              transaction (one call a sequence) and compare it with the one the checkpoint recorded;
+                              when nothing new was anchored under any of them (failed and inadmissible transactions
+                              do not count), the cached sequences are provably unchanged and the verdict is FULL under
+                              rc6 13.7 instead of RESUMED; a full run with --checkpoint-out records the signatures
   Exit code 0 only when every checked sequence is CANONICAL and no Solana enumeration was incomplete.`;
 function politeFetch(minGapMs = 125, maxTries = 8) {
   let next = 0;
@@ -56060,10 +56148,12 @@ async function main() {
   }
   const cp = cpText !== null ? parseCheckpoint(cpText, streamHex, network, `--checkpoint ${cpPath}`) : null;
   const seed = cp ? { sequence: BigInt(cp.sequence), commitment: checkpointCommitment(cp), historyUnresolvedBefore: cp.history_unresolved_before === true } : void 0;
+  const cacheProof = has("cache-proof");
+  if (cacheProof && cp === null) throw new Error("--cache-proof belongs to a resumed run: pass --checkpoint <file> as well (a full run with --checkpoint-out records the signatures the proof compares against)");
   const say = (line) => {
     if (!json) console.log(line);
   };
-  const conn = new import_web32.Connection(solRpc, { commitment: "finalized", disableRetryOnRateLimit: true, fetch: politeFetch() });
+  const conn = new import_web33.Connection(solRpc, { commitment: "finalized", disableRetryOnRateLimit: true, fetch: politeFetch() });
   await assertSolanaNetwork(conn, base58Decode(mainnet ? SOLANA_MAINNET_GENESIS_B58 : SOLANA_DEVNET_GENESIS_B58));
   let incomplete = false;
   const firstAvailable = await conn.getFirstAvailableBlock();
@@ -56100,7 +56190,8 @@ async function main() {
   const core = cores.find((p) => p.kind === "genesis" && equal(keccak256(p.core), streamId));
   if (!core || core.kind !== "genesis") throw new Error(`no genesis core that hashes to the pinned stream_id under witness key ${witnessAddress(gKey)}${historyFromMs !== null ? `; ${prunedNote(new Date(historyFromMs).toISOString())}` : ""}`);
   const genesis = parseGenesisCore(core.core);
-  if (historyFromMs !== null && historyFromMs > Number(genesis.genesisEpochStartMs)) {
+  const pruned = historyFromMs !== null && historyFromMs > Number(genesis.genesisEpochStartMs);
+  if (pruned) {
     incomplete = true;
     say(`WARNING        ${prunedNote(new Date(historyFromMs).toISOString())}. Every sequence below is reported INCOMPLETE.`);
   }
@@ -56127,13 +56218,30 @@ async function main() {
     const changed = alHeadChanged(cp, al.head);
     if (changed !== null) throw new Error(changed);
   }
+  let proof = null;
+  if (cp && seed && cacheProof) {
+    const stored = cp.newest_signatures ?? null;
+    if (stored === null) proof = unprovable("the checkpoint carries no newest_signatures list (written before a full run of this reader recorded one); a full run with --checkpoint-out records every key", []);
+    else if (pruned) proof = unprovable("this Solana endpoint is pruned, so a key that lists nothing here proves nothing; use an archive endpoint", stored);
+    else {
+      say(`cache proof    asking the ${seed.sequence} data witness keys before the checkpoint for their newest transaction (one call each, rc6 13.7)`);
+      try {
+        proof = await proveCachedSequences(conn, streamId, stored, seed.sequence);
+      } catch (err) {
+        proof = unprovable(`the proof stopped on an endpoint error: ${oneLine(errorText(err), 300)}`, stored);
+      }
+    }
+    if (proof.proven) say(`cache proof    HELD on the Solana witness: ${proof.checked} cached sequences, ${proof.changed} with new transactions, all ${proof.inadmissible} of them inadmissible, ${proof.calls} calls: with the unchanged log head the cached results are provably identical to a full evaluation, so this run carries the FULL verdict (the Base copies of cached sequences are not read again; the Sunday full run looks for them)`);
+    else say(`cache proof    NOT HELD after ${proof.checked} sequences and ${proof.calls} calls: ${proof.reason}. The verdict below stays RESUMED.`);
+  }
   const startedAt = BigInt(Date.now());
   const sMax = maxSequence(genesis, startedAt);
   const to = arg("to") !== void 0 ? BigInt(arg("to")) : sMax;
   const from15 = seed ? seed.sequence : BigInt(0);
   if (from15 > to) throw new Error(`the checkpoint sequence ${from15} is beyond the requested range (--to ${to})`);
-  if (seed) say(`checkpoint     RESUMED from sequence ${from15} (reader checkpoint${cp?.as_of ? ` of ${cp.as_of}` : ""}): sequences before it rely on the run that wrote it and are not re-read here; this is not the full rc6 13.7 verdict`);
+  if (seed) say(`checkpoint     ${proof?.proven ? "FULL (unless an enumeration below is incomplete)" : "RESUMED"} from sequence ${from15} (reader checkpoint${cp?.as_of ? ` of ${cp.as_of}` : ""}): sequences before it ${proof?.proven ? "are not re-read, but every one of their witness keys was shown to carry nothing new since that run (cache proof), the rc6 13.7 condition for reusing them" : "rely on the run that wrote it and are not re-read here; this is not the full rc6 13.7 verdict"}`);
   const payloads = [];
+  const newestBySeq = /* @__PURE__ */ new Map();
   const witness = /* @__PURE__ */ new Map();
   const dataSolana = /* @__PURE__ */ new Map();
   let emptyRun = 0;
@@ -56141,6 +56249,7 @@ async function main() {
     const k = witnessKey(streamId, WITNESS_KIND.DATA, s);
     const sol = await readAnchors(conn, k, streamId);
     incomplete ||= !sol.complete;
+    newestBySeq.set(s, sol.newestSignature);
     const data = sol.anchors.filter((a) => a.payload.kind === "data");
     for (const a of data) if (a.payload.kind === "data") payloads.push({ manifest: a.payload.manifest, signature: a.payload.signature });
     const firstData = data[0]?.payload;
@@ -56253,18 +56362,21 @@ async function main() {
       rangeCovered = { through, fixed: fixedClosed };
     }
     const { through: windowsThrough, fixed: fixedWindows } = windowsMarks({ copies: baseWindows ? baseWindows.copies : null, cpSequence, throughBefore: windowsThroughBefore, fixedBefore: fixedSkipped, unplacedFixed, rangeCovered });
-    written = { stream_id: streamHex, network, sequence: cpSequence.toString(), commitment: toHex(cpRow.commitment), history_unresolved_before: cpRow.flags.includes("HISTORY_UNRESOLVED_BEFORE") || seedHistory, al_head: { log_seq: al.head.logSeq.toString(), entry_hash: toHex(al.head.entryHash) }, solana_slot: witness.get(cpSequence.toString())?.slot ?? null, base_scanned_to: baseTo >= BigInt(0) ? baseTo.toString() : null, base_windows_through: windowsThrough >= BigInt(0) ? windowsThrough.toString() : null, base_fixed_windows: fixedWindows, as_of: new Date(Number(asOf)).toISOString(), previous: cp ? { sequence: cp.sequence, commitment: cp.commitment } : null };
+    const cachedPart = seed === void 0 ? [] : proof !== null && proof.newest.length > 0 ? proof.newest : cp?.newest_signatures ?? null;
+    const newestSignatures = assembleNewestList(cachedPart, from15, cpSequence, newestBySeq);
+    written = { stream_id: streamHex, network, sequence: cpSequence.toString(), commitment: toHex(cpRow.commitment), history_unresolved_before: cpRow.flags.includes("HISTORY_UNRESOLVED_BEFORE") || seedHistory, al_head: { log_seq: al.head.logSeq.toString(), entry_hash: toHex(al.head.entryHash) }, solana_slot: witness.get(cpSequence.toString())?.slot ?? null, base_scanned_to: baseTo >= BigInt(0) ? baseTo.toString() : null, base_windows_through: windowsThrough >= BigInt(0) ? windowsThrough.toString() : null, base_fixed_windows: fixedWindows, as_of: new Date(Number(asOf)).toISOString(), previous: cp ? { sequence: cp.sequence, commitment: cp.commitment } : null, newest_signatures: newestSignatures };
     writeFileSync(cpOut, JSON.stringify(written, null, 1) + "\n");
   }
   const baseSummary = baseScan ? { mode: "range", from: baseScan.scannedFrom.toString(), to: baseScan.scannedTo.toString(), calls: baseScan.calls, complete: baseScan.complete, stop: baseScan.stopReason } : baseWindows ? { mode: "windows", copies: baseWindows.copies.length, windows: baseWindows.windows.length, found: baseWindows.found, missing: baseWindows.missing, open: baseWindows.open, not_walked: baseWindows.notWalked, unplaced: unplacedFixed, fixed_windows_from_checkpoint: fixedSkipped, calls: baseWindows.calls, chunk: baseWindows.chunkUsed.toString(), latest_block: baseWindows.latestBlock.toString(), drift_blocks: baseWindows.driftBlocks.toString(), drift_rejected: baseWindows.driftRejected?.toString() ?? null, complete: baseWindows.complete, stop: baseWindows.stopReason, error: baseWindows.error !== null ? oneLine(baseWindows.error, 400) : null } : null;
-  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, base_scan_error: baseError, base_scan: baseSummary, base_copies: baseWindows ? baseWindows.copies : null, base_windows: baseWindows ? baseWindows.windows : null, verdict: seed ? "resumed" : "full", resolved_from: cp ? { sequence: cp.sequence, commitment: cp.commitment, note: "reader checkpoint from an earlier run: sequences before it were not re-read, so this is a resumed verdict, not the full rc6 13.7 one" } : null, checkpoint_written: written ? { path: cpOut, sequence: written.sequence } : null, checkpoint_kept: cpOut !== void 0 && !written ? baseUnread ? "the Base witness was not read" : !passed ? "the run did not pass" : heldBy !== null ? `the Base window of sequence ${heldBy} is not walked yet` : "nothing to write" : null, checkpoint_held_before: written && heldBy !== null && BigInt(written.sequence) < head ? heldBy.toString() : null, checked, canonical, passed, sequences: rows }, null, 1));
+  const verdict = seed === void 0 || proof?.proven === true && !incomplete ? "full" : "resumed";
+  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, base_scan_error: baseError, base_scan: baseSummary, base_copies: baseWindows ? baseWindows.copies : null, base_windows: baseWindows ? baseWindows.windows : null, verdict, cache_proof: proof ? { proven: proof.proven, witness: "solana", checked: proof.checked, changed: proof.changed, inadmissible: proof.inadmissible, calls: proof.calls, reason: proof.reason, sequence: proof.sequence } : null, resolved_from: cp ? { sequence: cp.sequence, commitment: cp.commitment, note: verdict === "full" ? "reader checkpoint from an earlier run: sequences before it were not re-read, but every data witness key before it was shown to carry nothing new on the Solana witness since that run (cache proof), so the cached results are provably identical to a full evaluation and this is a full verdict under rc6 13.7" : proof?.proven ? "reader checkpoint from an earlier run: the cache proof held, but a Solana enumeration of this run was incomplete, so this is a resumed verdict" : "reader checkpoint from an earlier run: sequences before it were not re-read, so this is a resumed verdict, not the full rc6 13.7 one" } : null, checkpoint_written: written ? { path: cpOut, sequence: written.sequence } : null, checkpoint_kept: cpOut !== void 0 && !written ? baseUnread ? "the Base witness was not read" : !passed ? "the run did not pass" : heldBy !== null ? `the Base window of sequence ${heldBy} is not walked yet` : "nothing to write" : null, checkpoint_held_before: written && heldBy !== null && BigInt(written.sequence) < head ? heldBy.toString() : null, checked, canonical, passed, sequences: rows }, null, 1));
   else {
     for (const r of rows) say(`seq ${String(r.sequence).padStart(5)}  ${String(r.state).padEnd(10)} ${String(r.commitment ?? "-").slice(0, 16)}  ${String(r.status ?? "-").padEnd(8)} records ${String(r.records ?? "-").padStart(3)}  end ${r.window_end ?? "-"}  solana x${r.solana_anchors}${Number(r.base_anchors) ? ` base x${r.base_anchors}` : ""}  anchored +${r.anchored_after_s ?? "?"} s${r.late ? " LATE" : ""}${r.flags.length ? "  [" + r.flags.join(",") + "]" : ""}`);
     if (seed && checked === 0) say(`no sequence after the checkpoint at ${seed.sequence} is anchored yet; the checkpoint is carried forward`);
     const baseTail = baseIncomplete ? baseError ? " \xB7 the Base witness was not read" : " \xB7 the Base scan stopped early" : baseWindows ? ` \xB7 Base copies ${baseWindows.found} of ${baseWindows.copies.length} expected${baseWindows.missing ? ` (${baseWindows.missing} MISSING)` : ""}${baseWindows.open ? ` (${baseWindows.open} still open)` : ""}` : "";
     say(`
-${canonical} of ${checked} sequences CANONICAL${seed ? ` after the reader checkpoint at ${seed.sequence} (RESUMED verdict)` : ""} \xB7 stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseTail}${incomplete ? " \xB7 a Solana enumeration was INCOMPLETE" : ""}`);
-    if (written) say(`checkpoint     written to ${cpOut}: sequence ${written.sequence}${BigInt(written.sequence) < head ? ` (held before sequence ${heldBy}, whose Base window is not walked yet: the next run reads it again)` : ""}, next run continues from there`);
+${canonical} of ${checked} sequences CANONICAL${seed ? ` after the reader checkpoint at ${seed.sequence} (${verdict === "full" ? "FULL verdict, cache proof held" : "RESUMED verdict"})` : ""} \xB7 stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseTail}${incomplete ? " \xB7 a Solana enumeration was INCOMPLETE" : ""}`);
+    if (written) say(`checkpoint     written to ${cpOut}: sequence ${written.sequence}${BigInt(written.sequence) < head ? ` (held before sequence ${heldBy}, whose Base window is not walked yet: the next run reads it again)` : ""}${written.newest_signatures ? `, ${written.newest_signatures.length} newest signatures recorded for the cache proof` : ", no newest-signature list (a full run records one)"}, next run continues from there`);
     else if (cpOut !== void 0 && baseUnread) say(`checkpoint     not written: the Base witness was not read in this run; the previous checkpoint stands`);
     say(`read from ${endpointHost(solRpc)}${useBase ? " and " + endpointHost(baseNet.rpcUrl) : ""} \xB7 window length ${Number(EPOCH_MS) / 1e3} s`);
   }

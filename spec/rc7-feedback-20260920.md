@@ -32,3 +32,41 @@ failure.
 ## 4. Base attestation gas
 
 Measured: 373k to 468k gas per attest. Worth a sentence in the cost model.
+
+## 2026-10-18 · Class A leaves with no input at all (restart gap) and the audit of 13.8
+
+Observed on mainnet: the host was shut down 11:06 to 11:28 UTC on 17 Oct 2026; the venue collector wrote no bucket
+for 11:00, 11:10 and 11:20, so epochs 8437 (T 11:30) and 8438 (T 11:35) found an empty look-back window. Every
+BYK.FUNDING.COMPOSITE.A and .B leaf of those two epochs was sealed NO_DATA with source_count 0, and the engine wrote
+no Class A snapshot for them (it returns before any write when the window is empty). The daily shadow audit then
+reported 24 "missing" snapshots and FAIL, which is what 13.8 and N29 ask for: "every Class A leaf, whatever its status
+(NO_DATA included) fails the audit if a Class A snapshot is missing".
+
+The conformant repair, a snapshot with an empty venue list, is not representable under rc6 as implemented: Annex A's
+parameter validation requires the catalogue size (the number of venues) to be at least 1, so `fundingComposite([])`
+raises "invalid methodology parameters" and an empty snapshot cannot be recomputed by the auditor. Two readings are
+possible and the spec should pick one:
+
+1. A Class A leaf sealed with an empty input set carries a snapshot whose venue list is empty, and the Level 3 audit
+   recomputes it as NO_DATA with expected_source_count 0 without running the Annex A algorithm (the algorithm's
+   parameter check is for non-empty inputs only). This keeps 13.8's "every Class A leaf has a snapshot" literal and
+   makes a restart gap auditable.
+2. The audit treats a NO_DATA Class A leaf with source_count 0 as "no input" and demands no snapshot for it, with the
+   gap manifest or the leaf itself as the evidence that nothing was consumed.
+
+Option 1 is the stronger one (a sealed leaf always has its input of record, even when the input is nothing) and is
+what ByKaranteli intends to implement once the text says so; until then the shadow audit keeps reporting such epochs
+as FAIL, which is honest, and the engine does not write empty snapshots.
+
+### Production choice, 18 Oct 2026 evening
+
+ByKaranteli implements option 1 from this date. The engine writes a snapshot with an empty venue list for every
+composite funding leaf it seals from no input at all (no bucket in the look-back window, no venue publishing a rate),
+for BYK.FUNDING.COMPOSITE.A and for the Class B shadow rows alike; a stored empty row is an input of record like any
+other, so a later load of the same boundary seals NO_DATA from it instead of composing from rows that arrived later.
+The shadow audit and `byk_ref.audit_range` recompute an empty snapshot as NO_DATA with expected_source_count 0 and every
+other field zero without calling the Annex A algorithm; `funding_composite` itself is unchanged and still refuses an
+empty catalogue under A.10. The 48 leaves of epochs 8437 and 8438 (24 in each) received their empty snapshots after the fact, written
+from the same rule, so the gap of 17 Oct is auditable. Suggested rc7 wording for 13.8: "a Class A leaf sealed with an
+empty input set carries a snapshot whose venue list is empty; the Level 3 audit recomputes it as NO_DATA with
+expected_source_count 0 and every other field zero, without running Annex A, and a missing snapshot remains a failure".

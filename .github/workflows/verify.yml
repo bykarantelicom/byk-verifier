@@ -1,5 +1,7 @@
 # Independent daily verification of the BYK Data Layer BETA1 stream, run outside ByKaranteli's servers.
-# Every day: a RESUMED run from the committed checkpoint (only the sequences since the last run are read).
+# Every day: a run from the committed checkpoint (only the sequences since the last run are read) with the rc6 13.7 cache
+# proof: every data witness key before the checkpoint is asked for its newest transaction (one call each) and compared with
+# the one the checkpoint recorded; nothing new under any of them makes the day's verdict FULL, otherwise it stays RESUMED.
 # Every Sunday: a FULL run from sequence 0 (the rc6 13.7 verdict on the Solana evidence; needs an archive Solana endpoint,
 # hours on a public one). Base is read in windows mode on both days: one short block range per expected copy, which the
 # keyed free endpoint in BASE_RPC_URL completes (it allows ten blocks per eth_getLogs call); the Sunday run looks 24 hours
@@ -55,7 +57,7 @@ jobs:
             node byk-verify.mjs --stream "$STREAM" --network mainnet --base-extension-hours 24 --checkpoint-out state/checkpoint.json --json > "$OUT" 2> "results/$DAY-full.err"
           else
             OUT="results/$DAY.json"
-            node byk-verify.mjs --stream "$STREAM" --network mainnet --checkpoint state/checkpoint.json --checkpoint-out state/checkpoint.json --json > "$OUT" 2> "results/$DAY.err"
+            node byk-verify.mjs --stream "$STREAM" --network mainnet --checkpoint state/checkpoint.json --checkpoint-out state/checkpoint.json --cache-proof --json > "$OUT" 2> "results/$DAY.err"
           fi
           RC=$?
           echo "rc=$RC" >> "$GITHUB_OUTPUT"
