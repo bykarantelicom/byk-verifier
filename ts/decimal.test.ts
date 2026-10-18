@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { BykError } from "./bytes";
-import { canonicalDecimal, scaleDecimal, scaleNumber } from "./decimal";
+import { boundLexemeFraction, canonicalDecimal, LEXEME_MAX_FRACTION_DIGITS, scaleDecimal, scaleNumber } from "./decimal";
 
 test("canonical decimal text of a double: shortest round-trip digits, never an exponent", () => {
   const cases: Array<[number, string]> = [
@@ -33,4 +33,18 @@ test("exact scaling truncates toward zero and never goes through a float", () =>
   for (const bad of ["", "1e5", "+1", " 1", "1,0", ".5", "5.", "abc", "1\n"]) assert.throws(() => scaleDecimal(bad, 2), BykError, JSON.stringify(bad));
   assert.throws(() => scaleDecimal("1", -1), BykError);
   assert.throws(() => scaleDecimal("1", 1.5), BykError);
+});
+
+test("a raw venue text longer than the lexeme grammar allows is cut toward zero as text (Lighter and Delta, 2026-10-02)", () => {
+  assert.equal(LEXEME_MAX_FRACTION_DIGITS, 18);
+  assert.equal(boundLexemeFraction("0.00009599999999999999"), "0.000095999999999999");
+  assert.equal(boundLexemeFraction("0.0039623800700552825"), "0.003962380070055282");
+  assert.equal(boundLexemeFraction("-0.0039623800700552825"), "-0.003962380070055282");
+  assert.equal(boundLexemeFraction("0.000100000000000000"), "0.000100000000000000", "18 digits pass untouched");
+  assert.equal(boundLexemeFraction("84026.6"), "84026.6");
+  assert.equal(boundLexemeFraction("1576"), "1576");
+  assert.equal(boundLexemeFraction("0.0000000000000000001"), "0", "all cut digits leave zero, never -0 or an empty text");
+  assert.equal(boundLexemeFraction("-0.0000000000000000001"), "0");
+  assert.equal(boundLexemeFraction("1e-7"), "1e-7", "a text outside the plain grammar is left for the composite to reject");
+  assert.equal(boundLexemeFraction("0.123456789012345678901", 3), "0.123");
 });

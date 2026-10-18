@@ -1,0 +1,74 @@
+# Independent daily verification of the BYK Data Layer BETA1 stream, run outside ByKaranteli's servers.
+# Every day: a RESUMED run from the committed checkpoint (only the sequences since the last run are read).
+# Every Sunday: a FULL run from sequence 0 (the rc6 13.7 verdict; needs an archive Solana endpoint, hours on a public one).
+# Results and the checkpoint are committed back to this repository, so the history of verdicts is public.
+name: verify
+on:
+  schedule:
+    - cron: "20 6 * * *"
+    - cron: "40 7 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "incremental (from the committed checkpoint) or full (from sequence 0)"
+        required: false
+        default: "incremental"
+permissions:
+  contents: write
+concurrency:
+  group: verify
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      STREAM: 46b69e107bc75175e86a336662311c6e198bbf0dab271c06bc5248888238f66d
+      SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+      BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Decide the mode
+        id: mode
+        run: |
+          MODE="${{ github.event.inputs.mode }}"
+          if [ -z "$MODE" ]; then
+            if [ "${{ github.event.schedule }}" = "40 7 * * 0" ]; then MODE=full; else MODE=incremental; fi
+          fi
+          if [ "$MODE" != "full" ] && [ ! -f state/checkpoint.json ]; then MODE=full; fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+      - name: Run the verifier
+        id: run
+        continue-on-error: true
+        run: |
+          mkdir -p results state
+          DAY="${{ steps.mode.outputs.day }}"
+          if [ "${{ steps.mode.outputs.mode }}" = "full" ]; then
+            OUT="results/$DAY-full.json"
+            node byk-verify.mjs --stream "$STREAM" --network mainnet --checkpoint-out state/checkpoint.json --json > "$OUT" 2> "results/$DAY-full.err"
+          else
+            OUT="results/$DAY.json"
+            node byk-verify.mjs --stream "$STREAM" --network mainnet --checkpoint state/checkpoint.json --checkpoint-out state/checkpoint.json --json > "$OUT" 2> "results/$DAY.err"
+          fi
+          RC=$?
+          echo "rc=$RC" >> "$GITHUB_OUTPUT"
+          echo "out=$OUT" >> "$GITHUB_OUTPUT"
+          exit $RC
+      - name: Summarise
+        run: |
+          node scripts/summarise-result.mjs "${{ steps.run.outputs.out }}" "${{ steps.run.outputs.rc }}" "${{ steps.mode.outputs.mode }}" >> results/README.md
+          tail -3 results/README.md
+      - name: Commit the result and the checkpoint
+        run: |
+          git config user.name "byk-verifier"
+          git config user.email "bykarantelicom@users.noreply.github.com"
+          git add results state
+          git commit -m "verify ${{ steps.mode.outputs.day }}: ${{ steps.mode.outputs.mode }} run, exit ${{ steps.run.outputs.rc }}" || echo "nothing to commit"
+          git push
+      - name: Fail the job when the verdict did not pass
+        if: steps.run.outputs.rc != '0'
+        run: exit 1

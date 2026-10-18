@@ -11,11 +11,12 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import * as B from "./index";
 
-const VECTOR_PATH = path.join(__dirname, "vectors", "byk_v1_test_vectors.json");
+const VECTOR_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "vectors", "byk_v1_test_vectors.json");
 const VECTOR_SHA256 = "a826aa48092184959b0fe32c52bb4d3da263f912fe9db885110e081b9670e870";
 const raw = fs.readFileSync(VECTOR_PATH);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -487,6 +488,38 @@ test("17.7 canonical resolution: fork, checkpoint, revocation, governance fork a
   assert.equal(B.resolveCanonical(al.state, cands, genesis, T_TEST, FAR_SEQ).size, 6);
   // a manifest whose window ends after T is not a candidate yet
   assert.equal(B.collectCandidates(al.state, genesis, P_FORK, T0 + mul(2)).has(big(2)), false);
+
+  // reader checkpoint (verifier incremental mode, 2026-10-18): seeding the resolution with any earlier resolved row
+  // reproduces the full resolution for every later sequence (fork, revocation and restart scenarios alike), flags the
+  // seed row READER_CHECKPOINT, reads nothing before it, and refuses a seed the chain does not carry.
+  const seedScenarios: Array<[Found[], B.AnchoredPayload[]]> = [
+    [[E1], P_FORK],
+    [[E1, E2d, E3d], [...P_FORK, pay(M2a, sigS2.M2a), pay(M3, sigS2.M3)]],
+    [[E1, E2restart], [...P_FORK, pay(M4, sig.M4), pay(M5, sig.M5)]],
+  ];
+  let seeds = 0;
+  for (const [logs, payloads] of seedScenarios) {
+    const st = B.buildAuthorizationLog(genesis, logs).state;
+    const cs = B.collectCandidates(st, genesis, payloads, T_TEST);
+    const full = B.resolveCanonical(st, cs, genesis, T_TEST);
+    for (const [s0, r0] of full) {
+      if (!r0.commitment) continue;
+      seeds++;
+      const seeded = B.resolveCanonical(st, cs, genesis, T_TEST, undefined, { sequence: s0, commitment: r0.commitment, historyUnresolvedBefore: r0.flags.includes("HISTORY_UNRESOLVED_BEFORE") });
+      assert.deepEqual(seeded.get(s0), { commitment: r0.commitment, flags: ["READER_CHECKPOINT"] }, `seed row ${s0}`);
+      for (const [s, r] of full) if (s > s0) assert.deepEqual(seeded.get(s), r, `seed ${s0}, sequence ${s}`);
+      for (const s of seeded.keys()) assert.ok(s >= s0, "nothing before the seed is resolved");
+      assert.equal(seeded.size, full.size - Number(s0));
+    }
+  }
+  assert.ok(seeds >= 6, "the scenarios carry resolved rows to seed from");
+  assert.throws(() => B.resolveCanonical(al.state, cands, genesis, T_TEST, undefined, { sequence: big(1), commitment: C2a }), /no admissible candidate/);
+  assert.throws(() => B.resolveCanonical(al.state, cands, genesis, T_TEST, big(1), { sequence: big(3), commitment: C3 }), /outside the resolved range/);
+  // a governance checkpoint (scenario B names C2a at sequence 2) beats a reader checkpoint that names the other branch
+  const stB = B.buildAuthorizationLog(genesis, [E1, E2b]).state;
+  const csB = B.collectCandidates(stB, genesis, P_FORK, T_TEST);
+  assert.throws(() => B.resolveCanonical(stB, csB, genesis, T_TEST, undefined, { sequence: big(2), commitment: C2b }), /names another commitment/);
+  assert.deepEqual(B.resolveCanonical(stB, csB, genesis, T_TEST, undefined, { sequence: big(2), commitment: C2a }).get(big(2)), { commitment: C2a, flags: ["READER_CHECKPOINT"] });
 });
 
 test("17.8 witness time", () => {

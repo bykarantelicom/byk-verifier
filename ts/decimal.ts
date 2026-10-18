@@ -48,3 +48,19 @@ export function scaleDecimal(text: string, decimals: number): bigint {
 export function scaleNumber(x: number, decimals: number): bigint {
   return scaleDecimal(canonicalDecimal(x), decimals);
 }
+
+/** Annex A lexeme grammar: a venue number text carries at most this many fractional digits. */
+export const LEXEME_MAX_FRACTION_DIGITS = 18;
+
+/** A venue's raw decimal text cut to the grammar bound, toward zero, as TEXT (a lexeme operation, never through a
+ *  float): "0.00009599999999999999" (20 digits) becomes "0.000095999999999999". Lighter and Delta publish 19 and 20
+ *  fractional digits, and until 2026-10-02 the Class A candidate rejected both venues ("too many fractional digits"),
+ *  which pushed the source ratio under the 70 percent quorum on most epochs. A text that is not a plain decimal is
+ *  returned unchanged and fails downstream as before. */
+export function boundLexemeFraction(text: string, max = LEXEME_MAX_FRACTION_DIGITS): string {
+  if (typeof text !== "string" || !DECIMAL_TEXT.test(text)) return text;
+  const dot = text.indexOf(".");
+  if (dot < 0 || text.length - dot - 1 <= max) return text;
+  const cut = text.slice(0, dot + 1 + max).replace(/0+$/, "").replace(/\.$/, "");
+  return cut === "-0" || cut === "-" || cut === "" ? "0" : cut;
+}

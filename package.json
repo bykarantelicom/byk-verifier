@@ -7,6 +7,7 @@
   "scripts": {
     "test": "tsx --test ts/conformance.test.ts ts/decimal.test.ts",
     "verify": "node byk-verify.mjs",
+    "verify:source": "tsx ts/byk-verify.ts",
     "tamper": "tsx examples/tamper.ts"
   },
   "dependencies": {
@@ -14,8 +15,13 @@
     "@noble/hashes": "1.8.0"
   },
   "devDependencies": {
+    "@solana/web3.js": "1.99.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "viem": "2.55.11"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
 }

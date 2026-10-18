@@ -4,23 +4,40 @@
  *   1. genesis core   from the genesis witness key; accepted only if keccak256(core) is the pinned stream_id
  *   2. authorization  log entries under the AL witness keys 1, 2, ... until a key is empty, built per rc6 11.5
  *   3. manifests      under the data witness keys of the requested range, admissibility per 12.6
- *   4. candidates and canonical resolution from sequence 0 (13.4, 13.5), as of now
+ *   4. candidates and canonical resolution from sequence 0 (13.4, 13.5), as of now; or, with a reader checkpoint,
+ *      from the reader's own earlier verdict (a RESUMED verdict, not the full one of 13.7)
  * Result per sequence: CANONICAL with its commitment, or UNRESOLVED with flags; INCOMPLETE when a witness key
- * could not be enumerated to the end (12.7). Exit code 1 unless every requested sequence is CANONICAL.
+ * could not be enumerated to the end (12.7). Exit code 1 unless every requested sequence is CANONICAL. A Base
+ * witness that cannot be read never changes the verdict (beta profile) and is reported as an incomplete scan.
  *
  * Usage: npx tsx src/scripts/byk-verify.ts --stream <64 hex> [--network devnet|mainnet] [--to <sequence>]
  *        (readers run the same code as one file: node byk-verify.mjs ..., see scripts/byk-verify-bundle.mjs)
  *        [--solana-rpc <url>] [--base-rpc <url>] [--base-from-block <n>] [--no-base] [--json]
+ *        [--checkpoint <file>] [--checkpoint-out <file>] [--help]
+ * Environment: SOLANA_RPC_URL and BASE_RPC_URL stand in for the two --rpc flags on mainnet.
  * Beta profile: every manifest is on Solana, one a day on Base, so Solana carries the range and Base is
- * checked for the genesis core, the log entries and whichever manifests it holds. */
+ * checked for the genesis core, the log entries and whichever manifests it holds. A Base endpoint that cannot
+ * be read (throttled, down, pruned) is reported as an incomplete Base scan and never changes the verdict.
+ * Reader checkpoint (2026-10-18): --checkpoint-out writes the last CANONICAL sequence, its commitment and the
+ * authorization log head after a run that passed; --checkpoint <that file> makes the next run read from that
+ * sequence on and seed the resolution with it (the row is flagged READER_CHECKPOINT; nothing before it is re-read
+ * in that run, so a late conflicting anchor for an older sequence is only seen by a full run). rc6 13.7 calls a
+ * verdict that starts at a checkpoint non-conformant (N20) and allows cached results only when no new log entry
+ * and no new anchor exists for the cached keys: the log head is compared (a changed log refuses the checkpoint),
+ * the anchors are not re-listed, so the output says RESUMED and a periodic full run gives the 13.7 verdict. The
+ * checkpoint is the reader's own earlier verdict, not a protocol object (the log's type 3 checkpoint is
+ * governance-signed). */
+import { readFileSync, writeFileSync } from "node:fs";
+
 import { Connection } from "@solana/web3.js";
 
 import {
   type AnchoredPayload, authorized, base58Decode, BASE_EAS_ADDRESS_HEX, BASE_MAINNET_CHAIN_ID, BASE_SEPOLIA_CHAIN_ID, buildAuthorizationLog, collectCandidates, EPOCH_MS, equal, fromHex, keccak256,
-  maxSequence, parseGenesisCore, parseManifest, recoverAddress, resolveCanonical, SOLANA_DEVNET_GENESIS_B58, SOLANA_MAINNET_GENESIS_B58, toHex, WITNESS_KIND, witnessKey,
-} from "../lib/byk";
-import { type BaseAnchor, BASE_MAINNET_RPC, BASE_SEPOLIA_RPC, type BaseNetwork, blockAtOrBefore, scanStreamAttestations } from "../lib/byk-chain/base";
-import { assertSolanaNetwork, readAnchors, SOLANA_DEVNET_RPC, witnessAddress } from "../lib/byk-chain/solana";
+  maxSequence, parseGenesisCore, parseManifest, type ReaderCheckpoint, recoverAddress, resolveCanonical, SOLANA_DEVNET_GENESIS_B58, SOLANA_MAINNET_GENESIS_B58, toHex, WITNESS_KIND, witnessKey,
+} from "./index";
+import { assertBaseRpc, type BaseAnchor, BASE_MAINNET_RPC, BASE_SEPOLIA_RPC, type BaseNetwork, blockAtOrBefore, scanStreamAttestations } from "./byk-chain/base";
+import { alHeadChanged, type CheckpointFile, checkpointBaseFrom, checkpointCommitment, parseCheckpoint } from "./byk-chain/checkpoint";
+import { assertSolanaNetwork, readAnchors, SOLANA_DEVNET_RPC, witnessAddress } from "./byk-chain/solana";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -28,6 +45,16 @@ function arg(name: string): string | undefined {
 }
 const has = (name: string) => process.argv.includes(`--${name}`);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const USAGE = `byk-verify: independent verifier of a BYK Data Layer stream (reads only the Solana and Base chains)
+  node byk-verify.mjs --stream <64 hex stream id> [--network mainnet|devnet] [--to <sequence>] [--json]
+    --solana-rpc <url>        archive endpoint (default https://api.mainnet-beta.solana.com, or SOLANA_RPC_URL)
+    --base-rpc <url>          Base endpoint (default https://mainnet.base.org, or BASE_RPC_URL)
+    --base-from-block <n>     first Base block to scan (default: the genesis time, or the checkpoint's last scanned block)
+    --no-base                 skip the Base witness (the verdict rests on Solana under the beta profile)
+    --checkpoint <file>       continue from a checkpoint written by an earlier run (--checkpoint-out)
+    --checkpoint-out <file>   after a run that passed, write the last CANONICAL sequence for the next run
+  Exit code 0 only when every checked sequence is CANONICAL and no Solana enumeration was incomplete.`;
 
 /* Public Solana endpoints rate-limit hard. web3.js retries a 429 on its own but prints a line for every retry, which
  * buried the verdict under dozens of "Server responded with 429" lines. This fetch keeps a steady pace (about eight
@@ -48,6 +75,10 @@ function politeFetch(minGapMs = 125, maxTries = 8): typeof fetch {
 }
 
 async function main(): Promise<void> {
+  if (has("help")) {
+    console.log(USAGE);
+    return;
+  }
   const streamHex = (arg("stream") ?? "").toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(streamHex)) throw new Error("--stream <64 hex characters> is required: it is the one value a verifier must get out of band");
   const streamId = fromHex(streamHex);
@@ -61,9 +92,20 @@ async function main(): Promise<void> {
    * days; api.mainnet-beta.solana.com serves from block 0. Any archive node works: --solana-rpc or SOLANA_RPC_URL,
    * and a pruned one is detected below and reported INCOMPLETE rather than trusted. */
   const solRpc = arg("solana-rpc") ?? (mainnet ? process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com" : SOLANA_DEVNET_RPC);
-  const baseNet: BaseNetwork = { chainId: mainnet ? BASE_MAINNET_CHAIN_ID : BASE_SEPOLIA_CHAIN_ID, rpcUrl: arg("base-rpc") ?? (mainnet ? BASE_MAINNET_RPC : BASE_SEPOLIA_RPC), easAddress: fromHex(BASE_EAS_ADDRESS_HEX) };
+  const baseNet: BaseNetwork = { chainId: mainnet ? BASE_MAINNET_CHAIN_ID : BASE_SEPOLIA_CHAIN_ID, rpcUrl: arg("base-rpc") ?? (mainnet ? process.env.BASE_RPC_URL ?? BASE_MAINNET_RPC : BASE_SEPOLIA_RPC), easAddress: fromHex(BASE_EAS_ADDRESS_HEX) };
   const useBase = !has("no-base");
   const json = has("json");
+  const cpPath = arg("checkpoint");
+  let cpText: string | null = null;
+  if (cpPath !== undefined) {
+    try {
+      cpText = readFileSync(cpPath, "utf8");
+    } catch (err) {
+      throw new Error(`--checkpoint ${cpPath} could not be read: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  const cp: CheckpointFile | null = cpText !== null ? parseCheckpoint(cpText, streamHex, network, `--checkpoint ${cpPath}`) : null;
+  const seed: ReaderCheckpoint | undefined = cp ? { sequence: BigInt(cp.sequence), commitment: checkpointCommitment(cp), historyUnresolvedBefore: cp.history_unresolved_before === true } : undefined;
   const say = (line: string) => {
     if (!json) console.log(line);
   };
@@ -84,12 +126,30 @@ async function main(): Promise<void> {
    * it the last two days are scanned. */
   const solCore = gSol.anchors.map((a) => a.payload).find((p) => p.kind === "genesis" && equal(keccak256(p.core), streamId));
   const sinceMs = solCore && solCore.kind === "genesis" ? parseGenesisCore(solCore.core).genesisEpochStartMs : BigInt(Date.now() - 2 * 86_400_000);
-  const baseFrom = arg("base-from-block") !== undefined ? BigInt(arg("base-from-block")!) : await blockAtOrBefore(baseNet, sinceMs);
-  const baseScan = useBase ? await scanStreamAttestations(baseNet, streamId, baseFrom) : null;
   /* Under the beta profile Solana witnesses every manifest and Base witnesses the genesis, the log entries and
    * one manifest a day, so a bounded Base scan never changes a verdict: it only removes a second copy. It is
-   * still reported, because a reader deserves to know which part of the evidence was actually enumerated. */
-  const baseIncomplete = Boolean(baseScan && !baseScan.complete);
+   * still reported, because a reader deserves to know which part of the evidence was actually enumerated. Every
+   * Base call sits inside this block: an endpoint that throttles for good, is down, is pruned or is another chain
+   * is reported the same way instead of ending the run (18 Oct 2026: mainnet.base.org answered "request limit
+   * reached" and the default command exited 1). A checkpoint carries the last Base block its run scanned; the next
+   * run starts an hour of blocks earlier so a reorganised or late-indexed attestation is not missed; without one
+   * the pass starts at the genesis time. */
+  const baseFromFlag = arg("base-from-block");
+  if (baseFromFlag !== undefined && !/^\d+$/.test(baseFromFlag)) throw new Error("--base-from-block takes a block number");
+  let baseScan: Awaited<ReturnType<typeof scanStreamAttestations>> | null = null;
+  let baseError: string | null = null;
+  if (useBase) {
+    try {
+      await assertBaseRpc(baseNet);
+      const cpBaseFrom = cp ? checkpointBaseFrom(cp) : null;
+      const baseFrom = baseFromFlag !== undefined ? BigInt(baseFromFlag) : cpBaseFrom !== null ? cpBaseFrom : await blockAtOrBefore(baseNet, sinceMs);
+      baseScan = await scanStreamAttestations(baseNet, streamId, baseFrom);
+    } catch (err) {
+      baseError = err instanceof Error ? err.message : String(err);
+    }
+  }
+  const baseIncomplete = useBase && (baseScan === null || !baseScan.complete);
+  if (useBase && baseError !== null) say(`WARNING        the Base witness could not be read: ${baseError.replace(/\s+/g, " ").slice(0, 200)}. Under the beta profile every manifest is on Solana, so the verdict below rests on Solana alone; pass --base-rpc <url> (or BASE_RPC_URL) for the second copy, or --no-base to skip it.`);
   const onBase = (k: Uint8Array): BaseAnchor[] => baseScan?.byWitnessKey.get(toHex(k)) ?? [];
   const gBase = { anchors: onBase(gKey) };
   const cores = [...gSol.anchors, ...gBase.anchors].map((a) => a.payload).filter((p) => p.kind === "genesis");
@@ -101,7 +161,8 @@ async function main(): Promise<void> {
     say(`WARNING        ${prunedNote(new Date(historyFromMs).toISOString())}. Every sequence below is reported INCOMPLETE.`);
   }
   if (genesis.baseChainId !== baseNet.chainId || !equal(genesis.solanaGenesisHash, base58Decode(mainnet ? SOLANA_MAINNET_GENESIS_B58 : SOLANA_DEVNET_GENESIS_B58))) throw new Error("the genesis core names other networks than the ones being read");
-  say(`genesis core   found on solana x${gSol.anchors.length}${baseScan ? `, base x${gBase.anchors.length} (blocks ${baseScan.scannedFrom} to ${baseScan.scannedTo} in ${baseScan.calls} calls of ${baseScan.chunkUsed}${baseScan.complete ? "" : ", STOPPED EARLY: pass --base-from-block or --no-base"})` : ""} · governance ${genesis.threshold}-of-${genesis.governance.length} · genesis ${new Date(Number(genesis.genesisEpochStartMs)).toISOString()}`);
+  const baseStop = baseScan && !baseScan.complete ? (baseScan.stopReason === "rate_limited" ? ", STOPPED EARLY: the endpoint kept throttling; pass --base-rpc, --base-from-block or --no-base" : ", STOPPED EARLY: call budget; pass --base-from-block or --no-base") : "";
+  say(`genesis core   found on solana x${gSol.anchors.length}${baseScan ? `, base x${gBase.anchors.length} (blocks ${baseScan.scannedFrom} to ${baseScan.scannedTo} in ${baseScan.calls} calls of ${baseScan.chunkUsed}${baseStop})` : useBase ? ", base NOT READ" : ""} · governance ${genesis.threshold}-of-${genesis.governance.length} · genesis ${new Date(Number(genesis.genesisEpochStartMs)).toISOString()}`);
 
   // 2 · authorization log
   const found: Array<{ entry: Uint8Array; bundle: Uint8Array }> = [];
@@ -117,15 +178,22 @@ async function main(): Promise<void> {
   const al = buildAuthorizationLog(genesis, found);
   say(`authorization  ${found.length} anchored entr${found.length === 1 ? "y" : "ies"} · log status ${al.status} · head ${al.head.logSeq} · signers ${[...al.state.auth.keys()].map((a) => "0x" + a.slice(0, 8)).join(", ") || "none"}`);
   if (al.status !== "OK") throw new Error(`authorization log is ${al.status}: every result is undetermined until governance resolves it`);
+  if (cp) {
+    const changed = alHeadChanged(cp, al.head);
+    if (changed !== null) throw new Error(changed);
+  }
 
   // 3 · manifests
   const startedAt = BigInt(Date.now());
   const sMax = maxSequence(genesis, startedAt);
   const to = arg("to") !== undefined ? BigInt(arg("to")!) : sMax;
+  const from = seed ? seed.sequence : BigInt(0);
+  if (from > to) throw new Error(`the checkpoint sequence ${from} is beyond the requested range (--to ${to})`);
+  if (seed) say(`checkpoint     RESUMED from sequence ${from} (reader checkpoint${cp?.as_of ? ` of ${cp.as_of}` : ""}): sequences before it rely on the run that wrote it and are not re-read here; this is not the full rc6 13.7 verdict`);
   const payloads: AnchoredPayload[] = [];
   const witness = new Map<string, { solana: number; base: number; slot: number | null; timeSec: number | null }>();
   let emptyRun = 0;
-  for (let s = BigInt(0); s <= to; s += BigInt(1)) {
+  for (let s = from; s <= to; s += BigInt(1)) {
     const k = witnessKey(streamId, WITNESS_KIND.DATA, s);
     const sol = await readAnchors(conn, k, streamId);
     incomplete ||= !sol.complete;
@@ -148,7 +216,7 @@ async function main(): Promise<void> {
    * evidence in hand was observed before this instant, so this is the honest as-of time. */
   const asOf = BigInt(Date.now());
   const cands = collectCandidates(al.state, genesis, payloads, asOf);
-  const resolution = resolveCanonical(al.state, cands, genesis, asOf, to);
+  const resolution = resolveCanonical(al.state, cands, genesis, asOf, to, seed);
   const rows: Array<Record<string, unknown>> = [];
   let canonical = 0;
   let checked = 0;
@@ -166,10 +234,11 @@ async function main(): Promise<void> {
     const w = witness.get(s.toString());
     if (!w) continue;
     if (s > head) continue; // beyond the stream's head: not a hole, just not made yet
-    checked++;
+    const isSeed = seed !== undefined && s === seed.sequence;
+    if (!isSeed) checked++;
     const m = r.commitment ? cands.get(s)?.get(toHex(r.commitment))?.manifest : undefined;
     const lateS = m && w.timeSec ? w.timeSec - Number(m.epochEndMs) / 1000 : null;
-    const state = incomplete ? "INCOMPLETE" : r.commitment ? "CANONICAL" : "UNRESOLVED";
+    const state = isSeed ? "CHECKPOINT" : incomplete ? "INCOMPLETE" : r.commitment ? "CANONICAL" : "UNRESOLVED";
     if (state === "CANONICAL") canonical++;
     rows.push({ sequence: s.toString(), state, commitment: r.commitment ? toHex(r.commitment) : null, flags: r.flags, status: m ? ["OK", "DEGRADED", "", "NO_DATA"][m.status] : null, records: m?.recordCount ?? null, window_end: m ? new Date(Number(m.epochEndMs)).toISOString() : null, solana_anchors: w.solana, base_anchors: w.base, solana_slot: w.slot, anchored_after_s: lateS, late: lateS !== null && lateS > 120 });
   }
@@ -183,13 +252,35 @@ async function main(): Promise<void> {
       if (!authorized(al.state, signer, m.sequence)) throw new Error(`internal: canonical manifest ${m.sequence} with an unauthorized signer`);
     }
   }
-  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, sequences: rows }, null, 1));
+  /* A resumed run with no sequence after its checkpoint yet has nothing to check and still passes (the checkpoint is
+   * carried forward); a full run with nothing to check does not. */
+  const passed = !incomplete && canonical === checked && (checked > 0 || seed !== undefined);
+  const headRow = head >= BigInt(0) ? resolution.get(head) : undefined;
+  const cpOut = arg("checkpoint-out");
+  let written: CheckpointFile | null = null;
+  /* A run that could not read the Base witness at all keeps the previous checkpoint: its log head would come from Solana
+   * alone, and a log entry anchored only on Base would surface one run later as a puzzling "log head differs". */
+  const baseUnread = useBase && baseScan === null;
+  if (cpOut !== undefined && passed && headRow?.commitment && !baseUnread) {
+    const seedHistory = seed !== undefined && head === seed.sequence && seed.historyUnresolvedBefore === true;
+    /* The Base coverage carried forward is the furthest block any run actually read: a scan stopped by the budget or by
+     * throttling still advances it (scannedTo is the last block covered), so the next run continues from there. */
+    const scannedBefore = cp?.base_scanned_to ? BigInt(cp.base_scanned_to) : BigInt(-1);
+    const scannedNow = baseScan ? baseScan.scannedTo : BigInt(-1);
+    const baseTo = scannedNow > scannedBefore ? scannedNow : scannedBefore;
+    written = { stream_id: streamHex, network, sequence: head.toString(), commitment: toHex(headRow.commitment), history_unresolved_before: headRow.flags.includes("HISTORY_UNRESOLVED_BEFORE") || seedHistory, al_head: { log_seq: al.head.logSeq.toString(), entry_hash: toHex(al.head.entryHash) }, solana_slot: witness.get(head.toString())?.slot ?? null, base_scanned_to: baseTo >= BigInt(0) ? baseTo.toString() : null, as_of: new Date(Number(asOf)).toISOString(), previous: cp ? { sequence: cp.sequence, commitment: cp.commitment } : null };
+    writeFileSync(cpOut, JSON.stringify(written, null, 1) + "\n");
+  }
+  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, base_scan_error: baseError, base_scan: baseScan ? { from: baseScan.scannedFrom.toString(), to: baseScan.scannedTo.toString(), calls: baseScan.calls, complete: baseScan.complete, stop: baseScan.stopReason } : null, verdict: seed ? "resumed" : "full", resolved_from: cp ? { sequence: cp.sequence, commitment: cp.commitment, note: "reader checkpoint from an earlier run: sequences before it were not re-read, so this is a resumed verdict, not the full rc6 13.7 one" } : null, checkpoint_written: written ? { path: cpOut, sequence: written.sequence } : null, checkpoint_kept: cpOut !== undefined && !written ? (baseUnread ? "the Base witness was not read" : passed ? "nothing to write" : "the run did not pass") : null, checked, canonical, passed, sequences: rows }, null, 1));
   else {
     for (const r of rows) say(`seq ${String(r.sequence).padStart(5)}  ${String(r.state).padEnd(10)} ${String(r.commitment ?? "-").slice(0, 16)}  ${String(r.status ?? "-").padEnd(8)} records ${String(r.records ?? "-").padStart(3)}  end ${r.window_end ?? "-"}  solana x${r.solana_anchors}${Number(r.base_anchors) ? ` base x${r.base_anchors}` : ""}  anchored +${r.anchored_after_s ?? "?"} s${r.late ? " LATE" : ""}${(r.flags as string[]).length ? "  [" + (r.flags as string[]).join(",") + "]" : ""}`);
-    say(`\n${canonical} of ${checked} sequences CANONICAL · stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseIncomplete ? " · the Base scan stopped early" : ""}${incomplete ? " · a Solana enumeration was INCOMPLETE" : ""}`);
+    if (seed && checked === 0) say(`no sequence after the checkpoint at ${seed.sequence} is anchored yet; the checkpoint is carried forward`);
+    say(`\n${canonical} of ${checked} sequences CANONICAL${seed ? ` after the reader checkpoint at ${seed.sequence} (RESUMED verdict)` : ""} · stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseIncomplete ? (baseError ? " · the Base witness was not read" : " · the Base scan stopped early") : ""}${incomplete ? " · a Solana enumeration was INCOMPLETE" : ""}`);
+    if (written) say(`checkpoint     written to ${cpOut}: sequence ${written.sequence}, next run continues from there`);
+    else if (cpOut !== undefined && baseUnread) say(`checkpoint     not written: the Base witness was not read in this run; the previous checkpoint stands`);
     say(`read from ${solRpc.replace(/\?.*$/, "")}${useBase ? " and " + baseNet.rpcUrl : ""} · window length ${Number(EPOCH_MS) / 1000} s`);
   }
-  process.exit(!incomplete && checked > 0 && canonical === checked ? 0 : 1);
+  process.exit(passed ? 0 : 1);
 }
 
 main().catch((err) => {

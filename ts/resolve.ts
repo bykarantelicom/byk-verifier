@@ -10,7 +10,12 @@ export type Candidate = { commitment: Bytes; manifest: Manifest };
 /** sequence -> commitment (hex) -> candidate */
 export type Candidates = Map<bigint, Map<string, Candidate>>;
 
-export type ResolutionFlag = "EQUIVOCATION" | "CHECKPOINT_NOT_CANDIDATE" | "CHECKPOINT_CONFLICT" | "HISTORY_UNRESOLVED_BEFORE";
+export type ResolutionFlag = "EQUIVOCATION" | "CHECKPOINT_NOT_CANDIDATE" | "CHECKPOINT_CONFLICT" | "HISTORY_UNRESOLVED_BEFORE" | "READER_CHECKPOINT";
+/** A reader's own earlier verdict: the last sequence a previous run of the same reader resolved CANONICAL and its commitment.
+ *  Not a protocol object (the log's type 3 checkpoint is governance-signed); it lets a daily run continue where the last one
+ *  stopped instead of reading every sequence since genesis, and the row it seeds is flagged READER_CHECKPOINT because this run
+ *  did not re-verify anything before it. A late conflicting anchor for an older sequence is only seen by a full run. */
+export type ReaderCheckpoint = { sequence: bigint; commitment: Bytes; /** the seed row carried HISTORY_UNRESOLVED_BEFORE in the run that wrote it */ historyUnresolvedBefore?: boolean };
 export type Resolved = { commitment: Bytes | null; flags: ResolutionFlag[] };
 export type Resolution = Map<bigint, Resolved>;
 
@@ -39,9 +44,11 @@ export function collectCandidates(state: AlState, genesis: Genesis, payloads: An
   return out;
 }
 
-/** Section 13.5. Always evaluated from sequence 0 (N20). The loop bound comes from T alone, never from a
+/** Section 13.5. Always evaluated from sequence 0 (N20); the one exception is a reader checkpoint (`seed`), the
+ *  verifier's own earlier verdict, which starts the loop after that sequence and marks the seed row READER_CHECKPOINT
+ *  (a resumed verdict, not the full one of 13.7; see the type above). The loop bound comes from T alone, never from a
  *  candidate or checkpoint sequence number (N22), so a far-future manifest cannot make a verifier spin. */
-export function resolveCanonical(state: AlState, cands: Candidates, genesis: Genesis, asOfMs: bigint, target?: bigint): Resolution {
+export function resolveCanonical(state: AlState, cands: Candidates, genesis: Genesis, asOfMs: bigint, target?: bigint, seed?: ReaderCheckpoint): Resolution {
   const result: Resolution = new Map();
   const sMax = maxSequence(genesis, asOfMs);
   const last = target === undefined || target > sMax ? sMax : target;
@@ -49,7 +56,20 @@ export function resolveCanonical(state: AlState, cands: Candidates, genesis: Gen
   let prevC: Bytes | null = null;
   let prevM: Manifest | null = null;
   let gap = false;
-  for (let s = B0; s <= last; s += B1) {
+  let first = B0;
+  if (seed !== undefined) {
+    if (seed.sequence < B0 || seed.sequence > last) throw new Error(`reader checkpoint sequence ${seed.sequence} is outside the resolved range 0 to ${last}`);
+    const k = cands.get(seed.sequence)?.get(toHex(seed.commitment));
+    if (!k) throw new Error(`reader checkpoint: sequence ${seed.sequence} has no admissible candidate with the checkpoint commitment on chain; run without --checkpoint`);
+    const governed = state.checkpoints.get(seed.sequence);
+    if (governed !== undefined && !equal(governed, seed.commitment)) throw new Error(`reader checkpoint: the authorization log's checkpoint at sequence ${seed.sequence} names another commitment; run without --checkpoint`);
+    result.set(seed.sequence, { commitment: k.commitment, flags: ["READER_CHECKPOINT"] });
+    prevC = k.commitment;
+    prevM = k.manifest;
+    gap = seed.historyUnresolvedBefore === true; // the full run's memory of an unresolved past travels with the seed
+    first = seed.sequence + B1;
+  }
+  for (let s = first; s <= last; s += B1) {
     const cs = cands.get(s) ?? new Map<string, Candidate>();
     const flags: ResolutionFlag[] = [];
     let res: Candidate | null = null;

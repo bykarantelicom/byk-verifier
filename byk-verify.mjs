@@ -2,6 +2,7 @@
 // Reads only the Solana and Base chains: no ByKaranteli API, no database. Pin the stream id and run
 //   node byk-verify.mjs --stream <64 hex stream id> --network mainnet
 // Options: --to <sequence>  --solana-rpc <url>  --base-rpc <url>  --base-from-block <n>  --no-base  --json
+//          --checkpoint <file>  --checkpoint-out <file>  --help   (SOLANA_RPC_URL and BASE_RPC_URL are read too)
 // Bundled, unminified, from ByKaranteli's src/scripts/byk-verify.ts with viem and @solana/web3.js; their
 // licences are at the end of this file. Protocol: BYK Data Layer v1.0.0-rc6. https://bykaranteli.com/proof
 import { createRequire as __bykCreateRequire } from "node:module";
@@ -41728,6 +41729,7 @@ var init_call = __esm({
 
 // src/scripts/byk-verify.ts
 var import_web32 = __toESM(require_index_cjs());
+import { readFileSync, writeFileSync } from "node:fs";
 
 // src/lib/byk/bytes.ts
 var BykError = class extends Error {
@@ -43931,7 +43933,7 @@ function collectCandidates(state, genesis, payloads, asOfMs) {
   }
   return out;
 }
-function resolveCanonical(state, cands, genesis, asOfMs, target) {
+function resolveCanonical(state, cands, genesis, asOfMs, target, seed) {
   const result = /* @__PURE__ */ new Map();
   const sMax = maxSequence(genesis, asOfMs);
   const last = target === void 0 || target > sMax ? sMax : target;
@@ -43939,7 +43941,20 @@ function resolveCanonical(state, cands, genesis, asOfMs, target) {
   let prevC = null;
   let prevM = null;
   let gap = false;
-  for (let s = B0; s <= last; s += B1) {
+  let first = B0;
+  if (seed !== void 0) {
+    if (seed.sequence < B0 || seed.sequence > last) throw new Error(`reader checkpoint sequence ${seed.sequence} is outside the resolved range 0 to ${last}`);
+    const k = cands.get(seed.sequence)?.get(toHex(seed.commitment));
+    if (!k) throw new Error(`reader checkpoint: sequence ${seed.sequence} has no admissible candidate with the checkpoint commitment on chain; run without --checkpoint`);
+    const governed = state.checkpoints.get(seed.sequence);
+    if (governed !== void 0 && !equal(governed, seed.commitment)) throw new Error(`reader checkpoint: the authorization log's checkpoint at sequence ${seed.sequence} names another commitment; run without --checkpoint`);
+    result.set(seed.sequence, { commitment: k.commitment, flags: ["READER_CHECKPOINT"] });
+    prevC = k.commitment;
+    prevM = k.manifest;
+    gap = seed.historyUnresolvedBefore === true;
+    first = seed.sequence + B1;
+  }
+  for (let s = first; s <= last; s += B1) {
     const cs = cands.get(s) ?? /* @__PURE__ */ new Map();
     const flags = [];
     let res = null;
@@ -55477,6 +55492,9 @@ function baseClients(n, privateKeyHex) {
   const wallet = privateKeyHex ? createWalletClient({ account: privateKeyToAccount("0x" + privateKeyHex.replace(/^0x/, "")), chain, transport }) : null;
   return { publicClient, wallet };
 }
+async function assertBaseNetwork(client, n) {
+  if (BigInt(await client.getChainId()) !== n.chainId) throw new Error("RPC endpoint is not the chain named in the genesis core");
+}
 var RANGE_REFUSAL = /limited to (?:an?\s+)?([\d,_]+)\s*(?:blocks?)?\s*range|block range (?:is )?too (?:large|wide)|range exceeds|exceeds? the maximum|up to ([\d,_]+) blocks|(?:returned |than )([\d,_]+) results/i;
 var MIN_LOG_CHUNK = BigInt(199);
 var DEFAULT_LOG_CHUNK = BigInt(1999);
@@ -55487,7 +55505,7 @@ function nextChunkAfterSuccess(span, successes, ceiling) {
   const grown = span * BigInt(2) + BigInt(1);
   return grown > ceiling ? ceiling : grown;
 }
-var RATE_LIMIT = /rate limit|too many requests|429|throttl/i;
+var RATE_LIMIT = /rate limit|request limit|too many requests|429|throttl|quota/i;
 var PAUSE_BETWEEN_CHUNKS_MS = 150;
 var sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function chunkFromRangeRefusal(message, current) {
@@ -55498,8 +55516,14 @@ function chunkFromRangeRefusal(message, current) {
   const next = n > BigInt(0) ? n - BigInt(1) : current / BigInt(2);
   return next < MIN_LOG_CHUNK ? MIN_LOG_CHUNK : next < current ? next : current / BigInt(2);
 }
+async function assertBaseRpc(n) {
+  const { publicClient } = baseClients(n);
+  await assertBaseNetwork(publicClient, n);
+}
 async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
-  const maxCalls = opts.maxCalls ?? 600;
+  const maxCalls = opts.maxCalls ?? 1500;
+  const waitMs = opts.rateLimitWaitMs ?? 2e3;
+  const maxWaits = opts.maxRateLimitWaits ?? 8;
   const { publicClient } = baseClients(n);
   const latest = (await publicClient.getBlock({ blockTag: "latest" })).number;
   const uids = SCHEMAS.map((schema) => hex(easSchemaUid(schema)));
@@ -55510,11 +55534,33 @@ async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
   let successes = 0;
   let calls = 0;
   let complete = true;
+  let stopReason = null;
   let rateLimitWaits = 0;
-  for (let from15 = fromBlock < BigInt(0) ? BigInt(0) : fromBlock; from15 <= latest; ) {
+  const start = fromBlock < BigInt(0) ? BigInt(0) : fromBlock;
+  let covered = start - BigInt(1);
+  const readBack = async (uid2) => {
+    for (; ; ) {
+      try {
+        const read = await publicClient.readContract({ address: hex(n.easAddress), abi: easAbi, functionName: "getAttestation", args: [uid2] });
+        rateLimitWaits = 0;
+        return read;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (!RATE_LIMIT.test(message)) throw err;
+        if (rateLimitWaits < maxWaits) {
+          rateLimitWaits++;
+          await sleep(waitMs * rateLimitWaits);
+          continue;
+        }
+        return null;
+      }
+    }
+  };
+  for (let from15 = start; from15 <= latest; ) {
     const to = from15 + span > latest ? latest : from15 + span;
     if (calls >= maxCalls) {
       complete = false;
+      stopReason = "max_calls";
       break;
     }
     let logs;
@@ -55530,15 +55576,25 @@ async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
         successes = 0;
         continue;
       }
-      if (RATE_LIMIT.test(message) && rateLimitWaits < 8) {
-        rateLimitWaits++;
-        await sleep(2e3 * rateLimitWaits);
-        continue;
+      if (RATE_LIMIT.test(message)) {
+        if (rateLimitWaits < maxWaits) {
+          rateLimitWaits++;
+          await sleep(waitMs * rateLimitWaits);
+          continue;
+        }
+        complete = false;
+        stopReason = "rate_limited";
+        break;
       }
       throw err;
     }
+    let throttledOut = false;
     for (const l of logs) {
-      const a = await publicClient.readContract({ address: hex(n.easAddress), abi: easAbi, functionName: "getAttestation", args: [l.args.uid] });
+      const a = await readBack(l.args.uid);
+      if (a === null) {
+        throttledOut = true;
+        break;
+      }
       const schema = SCHEMAS[uids.indexOf(a.schema)];
       const payload = schema && a.expirationTime === BigInt(0) && a.revocable === false && a.refUID === ZERO_BYTES32 ? parseEasData(schema, fromHex(a.data)) : null;
       const key = payload ? witnessKeyOf(payload, streamId) : null;
@@ -55551,12 +55607,19 @@ async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
       list.push({ uid: a.uid, txHash: l.transactionHash ?? "", blockNumber: l.blockNumber ?? BigInt(0), timeSec: Number(a.time), attester: a.attester, payload });
       byWitnessKey.set(toHex(key), list);
     }
+    if (throttledOut) {
+      complete = false;
+      stopReason = "rate_limited";
+      break;
+    }
     successes++;
+    rateLimitWaits = 0;
+    covered = to;
     span = nextChunkAfterSuccess(span, successes, ceiling);
     from15 = to + BigInt(1);
     if (from15 <= latest) await sleep(PAUSE_BETWEEN_CHUNKS_MS);
   }
-  return { byWitnessKey, inadmissible, scannedFrom: fromBlock, scannedTo: latest, chunkUsed: span, calls, complete };
+  return { byWitnessKey, inadmissible, scannedFrom: start, scannedTo: covered, chunkUsed: span, calls, complete, stopReason };
 }
 async function blockAtOrBefore(n, timeMs, marginBlocks = BigInt(900)) {
   const { publicClient } = baseClients(n);
@@ -55564,6 +55627,41 @@ async function blockAtOrBefore(n, timeMs, marginBlocks = BigInt(900)) {
   const behind = (latest.timestamp * BigInt(1e3) - timeMs) / BigInt(2e3);
   const guess = latest.number - (behind > BigInt(0) ? behind : BigInt(0)) - marginBlocks;
   return guess > BigInt(0) ? guess : BigInt(0);
+}
+
+// src/lib/byk-chain/checkpoint.ts
+var CHECKPOINT_BASE_REWIND = BigInt(1800);
+var HEX64 = /^(0x)?[0-9a-f]{64}$/i;
+var DIGITS = /^\d+$/;
+function parseCheckpoint(text, streamHex, network, label = "--checkpoint") {
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch (err) {
+    throw new Error(`${label} could not be read: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw new Error(`${label} could not be read: not a JSON object`);
+  const cp = raw;
+  if (cp.stream_id !== streamHex || cp.network !== network) throw new Error(`${label} belongs to stream ${String(cp.stream_id)} on ${String(cp.network)}, not to this run`);
+  if (!DIGITS.test(String(cp.sequence)) || !HEX64.test(String(cp.commitment))) throw new Error(`${label}: sequence or commitment is malformed`);
+  if (cp.base_scanned_to !== void 0 && cp.base_scanned_to !== null && !DIGITS.test(String(cp.base_scanned_to))) throw new Error(`${label}: base_scanned_to is malformed`);
+  if (cp.al_head !== void 0 && cp.al_head !== null) {
+    if (typeof cp.al_head !== "object" || !DIGITS.test(String(cp.al_head.log_seq)) || !HEX64.test(String(cp.al_head.entry_hash))) throw new Error(`${label}: al_head is malformed`);
+  }
+  return cp;
+}
+function checkpointCommitment(cp) {
+  return fromHex(cp.commitment.replace(/^0x/i, "").toLowerCase());
+}
+function checkpointBaseFrom(cp, rewind = CHECKPOINT_BASE_REWIND) {
+  if (cp.base_scanned_to === void 0 || cp.base_scanned_to === null) return null;
+  const from15 = BigInt(cp.base_scanned_to) - rewind;
+  return from15 > BigInt(0) ? from15 : BigInt(0);
+}
+function alHeadChanged(cp, head) {
+  if (cp.al_head === void 0 || cp.al_head === null) return null;
+  const same = cp.al_head.log_seq === head.logSeq.toString() && cp.al_head.entry_hash.replace(/^0x/i, "").toLowerCase() === toHex(head.entryHash);
+  return same ? null : `the authorization log read now differs from the one the checkpoint recorded (head ${cp.al_head.log_seq} then, ${head.logSeq} now): either governance acted since, which can change what earlier sequences resolve to, or this resumed run's bounded Base scan could not see a log entry anchored only on Base; run a full verification without --checkpoint`;
 }
 
 // src/lib/byk-chain/solana.ts
@@ -55629,6 +55727,15 @@ function arg(name) {
 }
 var has = (name) => process.argv.includes(`--${name}`);
 var sleep2 = (ms) => new Promise((r) => setTimeout(r, ms));
+var USAGE = `byk-verify: independent verifier of a BYK Data Layer stream (reads only the Solana and Base chains)
+  node byk-verify.mjs --stream <64 hex stream id> [--network mainnet|devnet] [--to <sequence>] [--json]
+    --solana-rpc <url>        archive endpoint (default https://api.mainnet-beta.solana.com, or SOLANA_RPC_URL)
+    --base-rpc <url>          Base endpoint (default https://mainnet.base.org, or BASE_RPC_URL)
+    --base-from-block <n>     first Base block to scan (default: the genesis time, or the checkpoint's last scanned block)
+    --no-base                 skip the Base witness (the verdict rests on Solana under the beta profile)
+    --checkpoint <file>       continue from a checkpoint written by an earlier run (--checkpoint-out)
+    --checkpoint-out <file>   after a run that passed, write the last CANONICAL sequence for the next run
+  Exit code 0 only when every checked sequence is CANONICAL and no Solana enumeration was incomplete.`;
 function politeFetch(minGapMs = 125, maxTries = 8) {
   let next = 0;
   return async (input, init) => {
@@ -55643,15 +55750,30 @@ function politeFetch(minGapMs = 125, maxTries = 8) {
   };
 }
 async function main() {
+  if (has("help")) {
+    console.log(USAGE);
+    return;
+  }
   const streamHex = (arg("stream") ?? "").toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(streamHex)) throw new Error("--stream <64 hex characters> is required: it is the one value a verifier must get out of band");
   const streamId = fromHex(streamHex);
   const network = arg("network") ?? "mainnet";
   const mainnet = network === "mainnet";
   const solRpc = arg("solana-rpc") ?? (mainnet ? process.env.SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com" : SOLANA_DEVNET_RPC);
-  const baseNet = { chainId: mainnet ? BASE_MAINNET_CHAIN_ID : BASE_SEPOLIA_CHAIN_ID, rpcUrl: arg("base-rpc") ?? (mainnet ? BASE_MAINNET_RPC : BASE_SEPOLIA_RPC), easAddress: fromHex(BASE_EAS_ADDRESS_HEX) };
+  const baseNet = { chainId: mainnet ? BASE_MAINNET_CHAIN_ID : BASE_SEPOLIA_CHAIN_ID, rpcUrl: arg("base-rpc") ?? (mainnet ? process.env.BASE_RPC_URL ?? BASE_MAINNET_RPC : BASE_SEPOLIA_RPC), easAddress: fromHex(BASE_EAS_ADDRESS_HEX) };
   const useBase = !has("no-base");
   const json = has("json");
+  const cpPath = arg("checkpoint");
+  let cpText = null;
+  if (cpPath !== void 0) {
+    try {
+      cpText = readFileSync(cpPath, "utf8");
+    } catch (err) {
+      throw new Error(`--checkpoint ${cpPath} could not be read: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  const cp = cpText !== null ? parseCheckpoint(cpText, streamHex, network, `--checkpoint ${cpPath}`) : null;
+  const seed = cp ? { sequence: BigInt(cp.sequence), commitment: checkpointCommitment(cp), historyUnresolvedBefore: cp.history_unresolved_before === true } : void 0;
   const say = (line) => {
     if (!json) console.log(line);
   };
@@ -55666,9 +55788,22 @@ async function main() {
   incomplete ||= !gSol.complete;
   const solCore = gSol.anchors.map((a) => a.payload).find((p) => p.kind === "genesis" && equal(keccak256(p.core), streamId));
   const sinceMs = solCore && solCore.kind === "genesis" ? parseGenesisCore(solCore.core).genesisEpochStartMs : BigInt(Date.now() - 2 * 864e5);
-  const baseFrom = arg("base-from-block") !== void 0 ? BigInt(arg("base-from-block")) : await blockAtOrBefore(baseNet, sinceMs);
-  const baseScan = useBase ? await scanStreamAttestations(baseNet, streamId, baseFrom) : null;
-  const baseIncomplete = Boolean(baseScan && !baseScan.complete);
+  const baseFromFlag = arg("base-from-block");
+  if (baseFromFlag !== void 0 && !/^\d+$/.test(baseFromFlag)) throw new Error("--base-from-block takes a block number");
+  let baseScan = null;
+  let baseError = null;
+  if (useBase) {
+    try {
+      await assertBaseRpc(baseNet);
+      const cpBaseFrom = cp ? checkpointBaseFrom(cp) : null;
+      const baseFrom = baseFromFlag !== void 0 ? BigInt(baseFromFlag) : cpBaseFrom !== null ? cpBaseFrom : await blockAtOrBefore(baseNet, sinceMs);
+      baseScan = await scanStreamAttestations(baseNet, streamId, baseFrom);
+    } catch (err) {
+      baseError = err instanceof Error ? err.message : String(err);
+    }
+  }
+  const baseIncomplete = useBase && (baseScan === null || !baseScan.complete);
+  if (useBase && baseError !== null) say(`WARNING        the Base witness could not be read: ${baseError.replace(/\s+/g, " ").slice(0, 200)}. Under the beta profile every manifest is on Solana, so the verdict below rests on Solana alone; pass --base-rpc <url> (or BASE_RPC_URL) for the second copy, or --no-base to skip it.`);
   const onBase = (k) => baseScan?.byWitnessKey.get(toHex(k)) ?? [];
   const gBase = { anchors: onBase(gKey) };
   const cores = [...gSol.anchors, ...gBase.anchors].map((a) => a.payload).filter((p) => p.kind === "genesis");
@@ -55680,7 +55815,8 @@ async function main() {
     say(`WARNING        ${prunedNote(new Date(historyFromMs).toISOString())}. Every sequence below is reported INCOMPLETE.`);
   }
   if (genesis.baseChainId !== baseNet.chainId || !equal(genesis.solanaGenesisHash, base58Decode(mainnet ? SOLANA_MAINNET_GENESIS_B58 : SOLANA_DEVNET_GENESIS_B58))) throw new Error("the genesis core names other networks than the ones being read");
-  say(`genesis core   found on solana x${gSol.anchors.length}${baseScan ? `, base x${gBase.anchors.length} (blocks ${baseScan.scannedFrom} to ${baseScan.scannedTo} in ${baseScan.calls} calls of ${baseScan.chunkUsed}${baseScan.complete ? "" : ", STOPPED EARLY: pass --base-from-block or --no-base"})` : ""} \xB7 governance ${genesis.threshold}-of-${genesis.governance.length} \xB7 genesis ${new Date(Number(genesis.genesisEpochStartMs)).toISOString()}`);
+  const baseStop = baseScan && !baseScan.complete ? baseScan.stopReason === "rate_limited" ? ", STOPPED EARLY: the endpoint kept throttling; pass --base-rpc, --base-from-block or --no-base" : ", STOPPED EARLY: call budget; pass --base-from-block or --no-base" : "";
+  say(`genesis core   found on solana x${gSol.anchors.length}${baseScan ? `, base x${gBase.anchors.length} (blocks ${baseScan.scannedFrom} to ${baseScan.scannedTo} in ${baseScan.calls} calls of ${baseScan.chunkUsed}${baseStop})` : useBase ? ", base NOT READ" : ""} \xB7 governance ${genesis.threshold}-of-${genesis.governance.length} \xB7 genesis ${new Date(Number(genesis.genesisEpochStartMs)).toISOString()}`);
   const found = [];
   for (let logSeq = 1; logSeq < 1e3; logSeq++) {
     const k = witnessKey(streamId, WITNESS_KIND.AL, BigInt(logSeq));
@@ -55694,13 +55830,20 @@ async function main() {
   const al = buildAuthorizationLog(genesis, found);
   say(`authorization  ${found.length} anchored entr${found.length === 1 ? "y" : "ies"} \xB7 log status ${al.status} \xB7 head ${al.head.logSeq} \xB7 signers ${[...al.state.auth.keys()].map((a) => "0x" + a.slice(0, 8)).join(", ") || "none"}`);
   if (al.status !== "OK") throw new Error(`authorization log is ${al.status}: every result is undetermined until governance resolves it`);
+  if (cp) {
+    const changed = alHeadChanged(cp, al.head);
+    if (changed !== null) throw new Error(changed);
+  }
   const startedAt = BigInt(Date.now());
   const sMax = maxSequence(genesis, startedAt);
   const to = arg("to") !== void 0 ? BigInt(arg("to")) : sMax;
+  const from15 = seed ? seed.sequence : BigInt(0);
+  if (from15 > to) throw new Error(`the checkpoint sequence ${from15} is beyond the requested range (--to ${to})`);
+  if (seed) say(`checkpoint     RESUMED from sequence ${from15} (reader checkpoint${cp?.as_of ? ` of ${cp.as_of}` : ""}): sequences before it rely on the run that wrote it and are not re-read here; this is not the full rc6 13.7 verdict`);
   const payloads = [];
   const witness = /* @__PURE__ */ new Map();
   let emptyRun = 0;
-  for (let s = BigInt(0); s <= to; s += BigInt(1)) {
+  for (let s = from15; s <= to; s += BigInt(1)) {
     const k = witnessKey(streamId, WITNESS_KIND.DATA, s);
     const sol = await readAnchors(conn, k, streamId);
     incomplete ||= !sol.complete;
@@ -55718,7 +55861,7 @@ async function main() {
   }
   const asOf = BigInt(Date.now());
   const cands = collectCandidates(al.state, genesis, payloads, asOf);
-  const resolution = resolveCanonical(al.state, cands, genesis, asOf, to);
+  const resolution = resolveCanonical(al.state, cands, genesis, asOf, to, seed);
   const rows = [];
   let canonical = 0;
   let checked = 0;
@@ -55731,10 +55874,11 @@ async function main() {
     const w = witness.get(s.toString());
     if (!w) continue;
     if (s > head) continue;
-    checked++;
+    const isSeed = seed !== void 0 && s === seed.sequence;
+    if (!isSeed) checked++;
     const m = r.commitment ? cands.get(s)?.get(toHex(r.commitment))?.manifest : void 0;
     const lateS = m && w.timeSec ? w.timeSec - Number(m.epochEndMs) / 1e3 : null;
-    const state = incomplete ? "INCOMPLETE" : r.commitment ? "CANONICAL" : "UNRESOLVED";
+    const state = isSeed ? "CHECKPOINT" : incomplete ? "INCOMPLETE" : r.commitment ? "CANONICAL" : "UNRESOLVED";
     if (state === "CANONICAL") canonical++;
     rows.push({ sequence: s.toString(), state, commitment: r.commitment ? toHex(r.commitment) : null, flags: r.flags, status: m ? ["OK", "DEGRADED", "", "NO_DATA"][m.status] : null, records: m?.recordCount ?? null, window_end: m ? new Date(Number(m.epochEndMs)).toISOString() : null, solana_anchors: w.solana, base_anchors: w.base, solana_slot: w.slot, anchored_after_s: lateS, late: lateS !== null && lateS > 120 });
   }
@@ -55747,14 +55891,30 @@ async function main() {
       if (!authorized(al.state, signer, m.sequence)) throw new Error(`internal: canonical manifest ${m.sequence} with an unauthorized signer`);
     }
   }
-  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, sequences: rows }, null, 1));
+  const passed = !incomplete && canonical === checked && (checked > 0 || seed !== void 0);
+  const headRow = head >= BigInt(0) ? resolution.get(head) : void 0;
+  const cpOut = arg("checkpoint-out");
+  let written = null;
+  const baseUnread = useBase && baseScan === null;
+  if (cpOut !== void 0 && passed && headRow?.commitment && !baseUnread) {
+    const seedHistory = seed !== void 0 && head === seed.sequence && seed.historyUnresolvedBefore === true;
+    const scannedBefore = cp?.base_scanned_to ? BigInt(cp.base_scanned_to) : BigInt(-1);
+    const scannedNow = baseScan ? baseScan.scannedTo : BigInt(-1);
+    const baseTo = scannedNow > scannedBefore ? scannedNow : scannedBefore;
+    written = { stream_id: streamHex, network, sequence: head.toString(), commitment: toHex(headRow.commitment), history_unresolved_before: headRow.flags.includes("HISTORY_UNRESOLVED_BEFORE") || seedHistory, al_head: { log_seq: al.head.logSeq.toString(), entry_hash: toHex(al.head.entryHash) }, solana_slot: witness.get(head.toString())?.slot ?? null, base_scanned_to: baseTo >= BigInt(0) ? baseTo.toString() : null, as_of: new Date(Number(asOf)).toISOString(), previous: cp ? { sequence: cp.sequence, commitment: cp.commitment } : null };
+    writeFileSync(cpOut, JSON.stringify(written, null, 1) + "\n");
+  }
+  if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, base_scan_error: baseError, base_scan: baseScan ? { from: baseScan.scannedFrom.toString(), to: baseScan.scannedTo.toString(), calls: baseScan.calls, complete: baseScan.complete, stop: baseScan.stopReason } : null, verdict: seed ? "resumed" : "full", resolved_from: cp ? { sequence: cp.sequence, commitment: cp.commitment, note: "reader checkpoint from an earlier run: sequences before it were not re-read, so this is a resumed verdict, not the full rc6 13.7 one" } : null, checkpoint_written: written ? { path: cpOut, sequence: written.sequence } : null, checkpoint_kept: cpOut !== void 0 && !written ? baseUnread ? "the Base witness was not read" : passed ? "nothing to write" : "the run did not pass" : null, checked, canonical, passed, sequences: rows }, null, 1));
   else {
     for (const r of rows) say(`seq ${String(r.sequence).padStart(5)}  ${String(r.state).padEnd(10)} ${String(r.commitment ?? "-").slice(0, 16)}  ${String(r.status ?? "-").padEnd(8)} records ${String(r.records ?? "-").padStart(3)}  end ${r.window_end ?? "-"}  solana x${r.solana_anchors}${Number(r.base_anchors) ? ` base x${r.base_anchors}` : ""}  anchored +${r.anchored_after_s ?? "?"} s${r.late ? " LATE" : ""}${r.flags.length ? "  [" + r.flags.join(",") + "]" : ""}`);
+    if (seed && checked === 0) say(`no sequence after the checkpoint at ${seed.sequence} is anchored yet; the checkpoint is carried forward`);
     say(`
-${canonical} of ${checked} sequences CANONICAL \xB7 stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseIncomplete ? " \xB7 the Base scan stopped early" : ""}${incomplete ? " \xB7 a Solana enumeration was INCOMPLETE" : ""}`);
+${canonical} of ${checked} sequences CANONICAL${seed ? ` after the reader checkpoint at ${seed.sequence} (RESUMED verdict)` : ""} \xB7 stream head is sequence ${head} of a possible ${sMax} at this time (a gap manifest covers many windows in one sequence)${baseIncomplete ? baseError ? " \xB7 the Base witness was not read" : " \xB7 the Base scan stopped early" : ""}${incomplete ? " \xB7 a Solana enumeration was INCOMPLETE" : ""}`);
+    if (written) say(`checkpoint     written to ${cpOut}: sequence ${written.sequence}, next run continues from there`);
+    else if (cpOut !== void 0 && baseUnread) say(`checkpoint     not written: the Base witness was not read in this run; the previous checkpoint stands`);
     say(`read from ${solRpc.replace(/\?.*$/, "")}${useBase ? " and " + baseNet.rpcUrl : ""} \xB7 window length ${Number(EPOCH_MS) / 1e3} s`);
   }
-  process.exit(!incomplete && checked > 0 && canonical === checked ? 0 : 1);
+  process.exit(passed ? 0 : 1);
 }
 main().catch((err) => {
   console.error(`[byk-verify] ${err instanceof Error ? err.message : String(err)}`);
