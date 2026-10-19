@@ -32,7 +32,7 @@ serves the records and the audit paths the example reads.
 ```
 node byk-verify.mjs --stream <stream id> [--network mainnet|devnet] [--to <sequence>] [--json]
                     [--solana-rpc <url>] [--base-rpc <url>] [--base-scan windows|range] [--base-from-block <n>] [--no-base]
-                    [--base-extension-hours <h>] [--checkpoint <file>] [--checkpoint-out <file>] [--help]
+                    [--base-extension-hours <h>] [--checkpoint <file>] [--checkpoint-out <file>] [--cache-proof] [--help]
 ```
 
 The stream id of the public stream is `46b69e107bc75175e86a336662311c6e198bbf0dab271c06bc5248888238f66d` (BYK.DATALAYER.BETA1,
