@@ -101,7 +101,7 @@ transactions, proves that the cached sequences would resolve exactly as before, 
 with a `cache_proof` block; a new admissible anchor under a cached key, a pruned endpoint or a checkpoint without the
 list leaves the verdict RESUMED with the reason. The proof covers the Solana witness, which carries the verdict under
 the beta profile; the Base copies of cached sequences are not read again (the Sunday run looks for every expected copy
-once more). The daily run in this repository passes the flag; the Sunday run reads everything from sequence 0
+once more). The daily run has two scheduled slots, 06:20 and 08:50 UTC; the second does nothing when the day's result is already committed (GitHub delays or drops scheduled runs under load, seen on 19 October 2026). The daily run in this repository passes the flag; the Sunday run reads everything from sequence 0
 regardless. On an archive endpoint the proof costs about one request a sequence.
 
 ## Change one digit

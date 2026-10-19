@@ -11,6 +11,9 @@ name: verify
 on:
   schedule:
     - cron: "20 6 * * *"
+    # Fallback slot (2026-10-19: the 06:20 run had not started by 07:34 UTC and the day's proof was dispatched by hand;
+    # GitHub delays or drops scheduled runs under load). The same incremental run, skipped when the day's result exists.
+    - cron: "50 8 * * *"
     - cron: "40 7 * * 0"
   workflow_dispatch:
     inputs:
@@ -44,10 +47,16 @@ jobs:
             if [ "${{ github.event.schedule }}" = "40 7 * * 0" ]; then MODE=full; else MODE=incremental; fi
           fi
           if [ "$MODE" != "full" ] && [ ! -f state/checkpoint.json ]; then MODE=full; fi
+          DAY="$(date -u +%F)"
+          SKIP=false
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$MODE" = "incremental" ] && [ -f "results/$DAY.json" ]; then SKIP=true; fi
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
-          echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+          echo "day=$DAY" >> "$GITHUB_OUTPUT"
+          echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
+          [ "$SKIP" = "true" ] && echo "results/$DAY.json already committed: this scheduled slot has nothing to do" || true
       - name: Run the verifier
         id: run
+        if: steps.mode.outputs.skip != 'true'
         continue-on-error: true
         run: |
           mkdir -p results state
@@ -64,16 +73,20 @@ jobs:
           echo "out=$OUT" >> "$GITHUB_OUTPUT"
           exit $RC
       - name: Summarise
+        if: steps.mode.outputs.skip != 'true'
         run: |
           node scripts/summarise-result.mjs "${{ steps.run.outputs.out }}" "${{ steps.run.outputs.rc }}" "${{ steps.mode.outputs.mode }}" >> results/README.md
           tail -3 results/README.md
       - name: Commit the result and the checkpoint
+        if: steps.mode.outputs.skip != 'true'
         run: |
           git config user.name "byk-verifier"
           git config user.email "bykarantelicom@users.noreply.github.com"
           git add results state
           git commit -m "verify ${{ steps.mode.outputs.day }}: ${{ steps.mode.outputs.mode }} run, exit ${{ steps.run.outputs.rc }}" || echo "nothing to commit"
+          # main may have moved during a long run (a workflow or README change pushed meanwhile): rebase, then push.
+          git pull --rebase origin main
           git push
       - name: Fail the job when the verdict did not pass
-        if: steps.run.outputs.rc != '0'
+        if: steps.mode.outputs.skip != 'true' && steps.run.outputs.rc != '0'
         run: exit 1
