@@ -54,7 +54,7 @@ jobs:
           # A scheduled slot has nothing to do once the day's result for its mode is committed (the server dispatches the
           # daily and the Sunday full run itself since 2026-10-20; GitHub's slots arrive hours late and act as the fallback).
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            if [ "$MODE" = "incremental" ] && [ -f "results/$DAY.json" ]; then SKIP=true; fi
+            if [ "$MODE" = "incremental" ] && { [ -f "results/$DAY.json" ] || [ -f "results/$DAY-full.json" ]; }; then SKIP=true; fi
             if [ "$MODE" = "full" ] && [ -f "results/$DAY-full.json" ]; then SKIP=true; fi
           fi
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
