@@ -13,6 +13,8 @@ on:
     - cron: "20 6 * * *"
     # Fallback slot (2026-10-19: the 06:20 run had not started by 07:34 UTC and the day's proof was dispatched by hand;
     # GitHub delays or drops scheduled runs under load). The same incremental run, skipped when the day's result exists.
+    # Since 2026-10-20 the primary trigger is a workflow_dispatch from the ByKaranteli server (06:25 and 09:00 UTC daily,
+    # Sunday 07:45 full); both slots fired seven hours late on 19 Oct and not at all by 10:40 UTC on 20 Oct.
     - cron: "50 8 * * *"
     - cron: "40 7 * * 0"
   workflow_dispatch:
@@ -49,11 +51,16 @@ jobs:
           if [ "$MODE" != "full" ] && [ ! -f state/checkpoint.json ]; then MODE=full; fi
           DAY="$(date -u +%F)"
           SKIP=false
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "$MODE" = "incremental" ] && [ -f "results/$DAY.json" ]; then SKIP=true; fi
+          # A scheduled slot has nothing to do once the day's result for its mode is committed (the server dispatches the
+          # daily and the Sunday full run itself since 2026-10-20; GitHub's slots arrive hours late and act as the fallback).
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            if [ "$MODE" = "incremental" ] && [ -f "results/$DAY.json" ]; then SKIP=true; fi
+            if [ "$MODE" = "full" ] && [ -f "results/$DAY-full.json" ]; then SKIP=true; fi
+          fi
           echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "day=$DAY" >> "$GITHUB_OUTPUT"
           echo "skip=$SKIP" >> "$GITHUB_OUTPUT"
-          [ "$SKIP" = "true" ] && echo "results/$DAY.json already committed: this scheduled slot has nothing to do" || true
+          [ "$SKIP" = "true" ] && echo "the day's $MODE result is already committed: this scheduled slot has nothing to do" || true
       - name: Run the verifier
         id: run
         if: steps.mode.outputs.skip != 'true'
