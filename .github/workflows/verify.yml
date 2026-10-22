@@ -37,14 +37,18 @@ jobs:
       SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
       BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, pinned 2026-10-22
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0, pinned 2026-10-22
         with:
           node-version: "22"
       - name: Decide the mode
         id: mode
+        env:
+          # the dispatch input reaches the shell as an environment variable, never as interpolated script text (2026-10-22)
+          MODE_INPUT: ${{ github.event.inputs.mode }}
         run: |
-          MODE="${{ github.event.inputs.mode }}"
+          MODE="$MODE_INPUT"
+          case "$MODE" in ""|full|incremental) ;; *) echo "unknown mode: $MODE" >&2; exit 1 ;; esac
           if [ -z "$MODE" ]; then
             if [ "${{ github.event.schedule }}" = "40 7 * * 0" ]; then MODE=full; else MODE=incremental; fi
           fi
