@@ -22,3 +22,4 @@ it), the cached sequences are provably unchanged and the line says "full, cache 
 | 2026-10-23 06:59 | incremental | PASS (full, cache proof held) | 177 of 177 CANONICAL | head 10110 | Base complete, copies 1 of 1 | exit 0 |
 | 2026-10-24 07:00 | incremental | PASS (full, cache proof held) | 288 of 288 CANONICAL | head 10398 | Base complete, copies 1 of 1 | exit 0 |
 | 2026-10-25 07:46 | full | PASS (full) | 10695 of 10695 CANONICAL | head 10694 | Base complete, copies 41 of 41 | exit 0 |
+| 2026-10-26 07:02 | incremental | PASS (full, cache proof held) | 281 of 281 CANONICAL | head 10975 | Base complete, copies 1 of 1 | exit 0 |
