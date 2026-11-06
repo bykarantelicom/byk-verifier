@@ -33,3 +33,4 @@ it), the cached sequences are provably unchanged and the line says "full, cache 
 | 2026-11-03 07:10 | incremental | PASS (full, cache proof held) | 288 of 288 CANONICAL | head 13280 | Base complete, copies 1 of 1 | exit 0 |
 | 2026-11-04 07:11 | incremental | PASS (full, cache proof held) | 289 of 289 CANONICAL | head 13569 | Base complete, copies 1 of 1 | exit 0 |
 | 2026-11-05 06:59 | incremental | PASS (resumed, cache proof not held: the proof stopped on an endpoint error: 500 Internal Server Error: Int) | 285 of 285 CANONICAL | head 13854 | Base complete, copies 1 of 1 | exit 0 |
+| 2026-11-06 07:17 | incremental | PASS (full, cache proof held) | 291 of 291 CANONICAL | head 14145 | Base complete, copies 0 of 1 (1 missing) | exit 0 |
