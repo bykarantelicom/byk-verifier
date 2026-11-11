@@ -629,8 +629,13 @@ export async function scanWitnessWindows(n: BaseNetwork, streamId: Bytes, specs:
       const from = await place(() => clock.rangeStart(fromMs), index);
       if ("stop" in from) return from.stop;
       if (from.block < at.block) {
-        await part(from.block, at.block - BigInt(1));
-        if (!stopped) readFrom = from.block;
+        const leadTo = await part(from.block, at.block - BigInt(1));
+        if (!stopped) {
+          readFrom = from.block;
+          // a walk that ended at the copy before the end of the lead left the blocks up to the expected time unread:
+          // the window reports the stretch it read without a gap, the lead up to the copy
+          if (leadTo < at.block - BigInt(1)) readTo = leadTo;
+        }
       }
     }
     // 3 · the hours beyond the window; a copy with another window still ahead is not extended here: its last window extends, if it comes to that

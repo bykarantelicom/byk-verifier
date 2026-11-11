@@ -55892,8 +55892,11 @@ async function scanWitnessWindows(n, streamId, specs, opts = {}) {
       const from15 = await place(() => clock.rangeStart(fromMs), index2);
       if ("stop" in from15) return from15.stop;
       if (from15.block < at.block) {
-        await part(from15.block, at.block - BigInt(1));
-        if (!stopped) readFrom = from15.block;
+        const leadTo = await part(from15.block, at.block - BigInt(1));
+        if (!stopped) {
+          readFrom = from15.block;
+          if (leadTo < at.block - BigInt(1)) readTo = leadTo;
+        }
       }
     }
     const lastWindowOfCopy = lastIndexOfCopy.get(copyKey(spec)) === index2;

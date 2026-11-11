@@ -362,6 +362,25 @@ test("a copy in the lead of a window placed from a Solana block time alone is fo
   }
 });
 
+test("a copy found part way through the lead: the window reports the lead up to the copy, never blocks it did not read", async () => {
+  // the same copy behind a ten-block endpoint: the lead is walked ten blocks at a time and ends at the chunk that holds it
+  const attestations = new Map<string, string>();
+  const copy = copyOf(5, 74_700, linear(74_700), attestations);
+  const rpc = await fakeRpc((_n, p) => (span(p) > 9 ? { error: { code: -32600, message: ALCHEMY_FREE } } : { result: copy.logsFor(p) }), { ...CHAIN, attestations });
+  try {
+    const r = await scanWitnessWindows(net(rpc.url), STREAM, [{ ...spec5, key: copy.key, beforeMs: BigInt(1_800_000) }], { rateLimitWaitMs: 1 });
+    const w = r.windows[0]!;
+    assert.deepEqual({ status: w.status, found: w.found }, { status: "found", found: 1 });
+    const answered = rpc.logCalls.filter((c) => num(c.toBlock) - num(c.fromBlock) <= 9);
+    const last = answered[answered.length - 1]!;
+    assert.ok(num(last.fromBlock) <= 74_700 && num(last.toBlock) >= 74_700, "the last call is the chunk that holds the copy");
+    assert.equal(w.to, String(num(last.toBlock)), "the window ends at the last block read in the lead");
+    assert.ok(num(w.from) < 74_700 && num(w.to) < num(answered[0]!.fromBlock) - 1, "and stops short of the part read first: the blocks between were not read");
+  } finally {
+    await rpc.close();
+  }
+});
+
 test("windows mode adapts to a ten-block cap and walks the whole window at that size when the copy is not there", async () => {
   const rpc = await fakeRpc((_n, p) => (span(p) > 9 ? { error: { code: -32600, message: ALCHEMY_FREE } } : { result: [] }), CHAIN);
   try {
