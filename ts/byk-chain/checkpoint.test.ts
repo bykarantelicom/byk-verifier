@@ -2,19 +2,19 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { fromHex, toHex } from "../index";
-import { alHeadChanged, CHECKPOINT_BASE_REWIND, checkpointBaseFrom, checkpointCommitment, checkpointWindowsThrough, parseCheckpoint } from "./checkpoint";
+import { alHeadChanged, CHECKPOINT_BASE_REWIND_MS, checkpointBaseScanned, checkpointCommitment, checkpointWindowsThrough, parseCheckpoint } from "./checkpoint";
 
 const STREAM = "46b69e107bc75175e86a336662311c6e198bbf0dab271c06bc5248888238f66d";
 const C = "7bd7b325533b50e7952e101b88434f638df912436bd6cf674523636406f52436";
 const ok = { stream_id: STREAM, network: "mainnet", sequence: "631", commitment: C, base_scanned_to: "52700000", al_head: { log_seq: "1", entry_hash: C } };
 
-test("reader checkpoint: a valid file parses, the commitment is bytes, the Base scan rewinds an hour", () => {
+test("reader checkpoint: a valid file parses, the commitment is bytes, the scanned Base block is read and the rewind is an hour of time", () => {
   const cp = parseCheckpoint(JSON.stringify(ok), STREAM, "mainnet");
   assert.equal(cp.sequence, "631");
   assert.equal(toHex(checkpointCommitment(cp)), C);
-  assert.equal(checkpointBaseFrom(cp), BigInt(52700000) - CHECKPOINT_BASE_REWIND);
-  assert.equal(checkpointBaseFrom(parseCheckpoint(JSON.stringify({ ...ok, base_scanned_to: null }), STREAM, "mainnet")), null);
-  assert.equal(checkpointBaseFrom(parseCheckpoint(JSON.stringify({ ...ok, base_scanned_to: "100" }), STREAM, "mainnet")), BigInt(0));
+  assert.equal(checkpointBaseScanned(cp), BigInt(52700000));
+  assert.equal(CHECKPOINT_BASE_REWIND_MS, BigInt(3_600_000), "a time: the scan turns it into blocks at whatever pace the chain has");
+  assert.equal(checkpointBaseScanned(parseCheckpoint(JSON.stringify({ ...ok, base_scanned_to: null }), STREAM, "mainnet")), null);
   assert.equal(toHex(checkpointCommitment(parseCheckpoint(JSON.stringify({ ...ok, commitment: "0x" + C.toUpperCase() }), STREAM, "mainnet"))), C);
 });
 

@@ -20703,10 +20703,10 @@ var require_sha3 = __commonJS({
         for (let x = 0; x < 10; x += 2) {
           const idx1 = (x + 8) % 10;
           const idx0 = (x + 2) % 10;
-          const B02 = B[idx0];
-          const B12 = B[idx0 + 1];
-          const Th = rotlH2(B02, B12, 1) ^ B[idx1];
-          const Tl = rotlL2(B02, B12, 1) ^ B[idx1 + 1];
+          const B03 = B[idx0];
+          const B13 = B[idx0 + 1];
+          const Th = rotlH2(B03, B13, 1) ^ B[idx1];
+          const Tl = rotlL2(B03, B13, 1) ^ B[idx1 + 1];
           for (let y = 0; y < 50; y += 10) {
             s[x + y] ^= Th;
             s[x + y + 1] ^= Tl;
@@ -32253,10 +32253,10 @@ function keccakP(s, rounds = 24) {
     for (let x = 0; x < 10; x += 2) {
       const idx1 = (x + 8) % 10;
       const idx0 = (x + 2) % 10;
-      const B02 = B[idx0];
-      const B12 = B[idx0 + 1];
-      const Th = rotlH(B02, B12, 1) ^ B[idx1];
-      const Tl = rotlL(B02, B12, 1) ^ B[idx1 + 1];
+      const B03 = B[idx0];
+      const B13 = B[idx0 + 1];
+      const Th = rotlH(B03, B13, 1) ^ B[idx1];
+      const Tl = rotlL(B03, B13, 1) ^ B[idx1 + 1];
       for (let y = 0; y < 50; y += 10) {
         s[x + y] ^= Th;
         s[x + y + 1] ^= Tl;
@@ -55476,6 +55476,84 @@ var baseSepoliaPreconf = /* @__PURE__ */ defineChain({
   }
 });
 
+// src/lib/byk-chain/block-clock.ts
+var CLOCK_TOLERANCE_MS = BigInt(6e3);
+var CLOCK_MAX_READS_PER_SEARCH = 160;
+var B02 = BigInt(0);
+var B12 = BigInt(1);
+var B22 = BigInt(2);
+function makeBlockClock(head, readBlock) {
+  const points = [head];
+  let reads = 0;
+  const firstNot = (before) => {
+    let lo = 0;
+    let hi = points.length;
+    while (lo < hi) {
+      const mid = lo + hi >> 1;
+      if (before(points[mid])) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+  const insert = (p) => {
+    const i = firstNot((x) => x.number < p.number);
+    if (points[i]?.number !== p.number) points.splice(i, 0, p);
+  };
+  async function locate(timeMs, side) {
+    const early = (p) => side === "start" ? p.timeMs < timeMs : p.timeMs <= timeMs;
+    if (early(head)) return head.number;
+    const firstLate = firstNot(early);
+    let lo = firstLate > 0 ? points[firstLate - 1] : null;
+    let hi = points[firstLate];
+    let spent = 0;
+    const read = async (number) => {
+      if (++spent > CLOCK_MAX_READS_PER_SEARCH) throw new Error(`the endpoint's block times do not narrow down to ${new Date(Number(timeMs)).toISOString()} after ${CLOCK_MAX_READS_PER_SEARCH} block reads`);
+      const p = await readBlock(number);
+      if (p === null) return null;
+      reads++;
+      insert(p);
+      return p;
+    };
+    let step = B02;
+    while (lo === null) {
+      const lowest = points[0];
+      if (lowest.number === B02) return B02;
+      const next = points[1];
+      let back = next && next.timeMs > lowest.timeMs ? (lowest.timeMs - timeMs) * (next.number - lowest.number) / (next.timeMs - lowest.timeMs) : BigInt(1e3);
+      back = back * B22 + B12;
+      if (back < step * B22) back = step * B22;
+      step = back;
+      const p = await read(lowest.number > back ? lowest.number - back : B02);
+      if (p === null) return null;
+      if (p.timeMs > lowest.timeMs) throw new Error(`the endpoint's block times are out of order: block ${p.number} is later than block ${lowest.number}`);
+      if (early(p)) lo = p;
+      else hi = p;
+    }
+    let bisect = false;
+    for (; ; ) {
+      if (side === "start" && timeMs - lo.timeMs <= CLOCK_TOLERANCE_MS) return lo.number;
+      if (side === "end" && hi.timeMs - timeMs <= CLOCK_TOLERANCE_MS) return hi.number;
+      const gap = hi.number - lo.number;
+      if (gap <= B12) return side === "start" ? lo.number : hi.number;
+      let guess;
+      if (bisect || hi.timeMs <= lo.timeMs) guess = lo.number + gap / B22;
+      else {
+        const aim = side === "start" ? timeMs - CLOCK_TOLERANCE_MS / B22 : timeMs + CLOCK_TOLERANCE_MS / B22;
+        guess = lo.number + (aim - lo.timeMs) * gap / (hi.timeMs - lo.timeMs);
+      }
+      if (guess <= lo.number) guess = lo.number + B12;
+      if (guess >= hi.number) guess = hi.number - B12;
+      const p = await read(guess);
+      if (p === null) return null;
+      if (p.timeMs < lo.timeMs || p.timeMs > hi.timeMs) throw new Error(`the endpoint's block times are out of order around block ${p.number}`);
+      if (early(p)) lo = p;
+      else hi = p;
+      bisect = !bisect && (hi.number - lo.number) * B22 > gap;
+    }
+  }
+  return { rangeStart: (timeMs) => locate(timeMs, "start"), rangeEnd: (timeMs) => locate(timeMs, "end"), reads: () => reads };
+}
+
 // src/lib/byk-chain/base.ts
 var BASE_SEPOLIA_RPC = "https://sepolia.base.org";
 var BASE_MAINNET_RPC = "https://mainnet.base.org";
@@ -55561,6 +55639,7 @@ function groupHits(hits) {
   }
   return byWitnessKey;
 }
+var pointOf = (b) => ({ number: b.number, timeMs: b.timestamp * BigInt(1e3) });
 function makeWalker(n, streamId, opts) {
   const maxCalls = opts.maxCalls ?? 1500;
   const waitMs = opts.rateLimitWaitMs ?? 2e3;
@@ -55600,9 +55679,10 @@ function makeWalker(n, streamId, opts) {
     }
   };
   const readBack = (uid2) => read(() => publicClient.readContract({ address: hex(n.easAddress), abi: easAbi, functionName: "getAttestation", args: [uid2] }));
-  async function walk3(from15, to, recipient) {
+  async function walk3(from15, to, recipient, untilKey) {
     const hits = [];
     let covered = from15 - BigInt(1);
+    let reached = false;
     if (state.stopReason !== null) return { covered, hits, stopped: true, error: null };
     for (let at = from15; at <= to; ) {
       const end = at + state.span > to ? to : at + state.span;
@@ -55657,7 +55737,9 @@ function makeWalker(n, streamId, opts) {
           state.inadmissible++;
           continue;
         }
-        hits.push({ key: toHex(admissible.key), anchor: admissible.anchor });
+        const key = toHex(admissible.key);
+        hits.push({ key, anchor: admissible.anchor });
+        if (key === untilKey) reached = true;
       }
       if (end - at === state.span) {
         state.successes++;
@@ -55666,6 +55748,7 @@ function makeWalker(n, streamId, opts) {
       state.rateLimitWaits = 0;
       state.errorRetries = 0;
       covered = end;
+      if (reached) break;
       at = end + BigInt(1);
     }
     return { covered, hits, stopped: false, error: null };
@@ -55673,12 +55756,27 @@ function makeWalker(n, streamId, opts) {
   const budgetLeft = () => state.calls < maxCalls;
   return { walk: walk3, read, budgetLeft, state, publicClient };
 }
-async function scanStreamAttestations(n, streamId, fromBlock, opts = {}) {
-  const w = makeWalker(n, streamId, opts);
-  const start = fromBlock < BigInt(0) ? BigInt(0) : fromBlock;
+var RANGE_MAX_CALLS = 1e4;
+var RANGE_START_MARGIN_MS = BigInt(18e5);
+async function scanStreamAttestations(n, streamId, from15, opts = {}) {
+  const w = makeWalker(n, streamId, { ...opts, maxCalls: opts.maxCalls ?? RANGE_MAX_CALLS });
   const latest = await w.read(() => w.publicClient.getBlock({ blockTag: "latest" }));
-  if (latest === null) w.state.stopReason = "rate_limited";
-  const r = latest === null ? { hits: [], covered: start - BigInt(1), stopped: true, error: null } : await w.walk(start, latest.number);
+  let placed = typeof from15 === "bigint" ? from15 : null;
+  if (typeof from15 !== "bigint" && latest !== null) {
+    const readPoint = async (number) => {
+      const b = await w.read(() => w.publicClient.getBlock({ blockNumber: number }));
+      return b === null ? null : pointOf(b);
+    };
+    const clock = makeBlockClock(pointOf(latest), readPoint);
+    if ("timeMs" in from15) placed = await clock.rangeStart(from15.timeMs - (from15.marginMs ?? RANGE_START_MARGIN_MS));
+    else {
+      const covered = from15.rewindFrom >= latest.number ? pointOf(latest) : await readPoint(from15.rewindFrom < BigInt(0) ? BigInt(0) : from15.rewindFrom);
+      placed = covered === null ? null : await clock.rangeStart(covered.timeMs - from15.rewindMs);
+    }
+  }
+  if (latest === null || placed === null) w.state.stopReason = "rate_limited";
+  const start = placed === null || placed < BigInt(0) ? BigInt(0) : placed;
+  const r = latest === null || placed === null ? { hits: [], covered: start - BigInt(1), stopped: true, error: null } : await w.walk(start, latest.number);
   if (r.error !== null) throw r.error;
   return { byWitnessKey: groupHits(r.hits), inadmissible: w.state.inadmissible, scannedFrom: start, scannedTo: r.covered, latestBlock: latest?.number ?? BigInt(-1), latestTimeMs: latest ? latest.timestamp * BigInt(1e3) : BigInt(-1), chunkUsed: w.state.span, calls: w.state.calls, complete: !r.stopped, stopReason: w.state.stopReason };
 }
@@ -55686,14 +55784,7 @@ var WINDOW_BEFORE_MS = BigInt(12e4);
 var FIXED_WINDOW_BEFORE_MS = BigInt(18e5);
 var WINDOW_AFTER_MS = BigInt(9e5);
 var WINDOW_EXTENSION_MS = BigInt(216e5);
-var BASE_BLOCK_MS = BigInt(2e3);
 var WINDOWS_MAX_CALLS = 2e4;
-function blockNumberAt(latest, timeMs, blockMs = BASE_BLOCK_MS) {
-  const latestMs = latest.timestamp * BigInt(1e3);
-  const behind = timeMs < latestMs ? (latestMs - timeMs) / blockMs : BigInt(0);
-  const b = latest.number - behind;
-  return b < BigInt(0) ? BigInt(0) : b;
-}
 var copyKey = (x) => `${x.kind}:${x.n.toString()}`;
 function summariseCopies(specs, windows) {
   const order = [];
@@ -55725,33 +55816,40 @@ async function scanWitnessWindows(n, streamId, specs, opts = {}) {
     for (const rest of specs.slice(fromIndex)) windows.push({ kind: rest.kind, n: rest.n.toString(), from: null, to: null, found: 0, calls: 0, extended: false, status: "not_walked" });
   };
   let error = null;
-  let driftRejected = null;
-  const finish = (latestBlock, driftBlocks2) => {
+  let blockReads = () => 0;
+  const finish = (latestBlock) => {
     const copies = summariseCopies(specs, windows);
     const count = (st) => copies.filter((c) => c.status === st).length;
-    return { byWitnessKey: groupHits(hits), inadmissible: w.state.inadmissible, windows, copies, found: count("found"), missing: count("missing"), open: count("open"), notWalked: count("not_walked"), calls: w.state.calls, chunkUsed: w.state.span, complete: windows.every((x) => x.status !== "not_walked") && w.state.stopReason === null, stopReason: w.state.stopReason, error, latestBlock, driftBlocks: driftBlocks2, driftRejected };
+    return { byWitnessKey: groupHits(hits), inadmissible: w.state.inadmissible, windows, copies, found: count("found"), missing: count("missing"), open: count("open"), notWalked: count("not_walked"), calls: w.state.calls, chunkUsed: w.state.span, complete: windows.every((x) => x.status !== "not_walked") && w.state.stopReason === null, stopReason: w.state.stopReason, error, latestBlock, blockReads: blockReads() };
   };
-  const stoppedEarly = (reason, err, latestBlock, fromIndex, driftBlocks2) => {
+  const stoppedEarly = (reason, err, latestBlock, fromIndex) => {
     if (err !== null) error = messageOf(err);
     w.state.stopReason = reason;
     notWalkedRest(fromIndex);
-    return finish(latestBlock, driftBlocks2);
+    return finish(latestBlock);
   };
-  const readOrStop = async (which, latestBlock, fromIndex, driftBlocks2) => {
+  let head;
+  try {
+    const latest = await w.read(() => w.publicClient.getBlock({ blockTag: "latest" }));
+    if (latest === null) return stoppedEarly("rate_limited", null, BigInt(-1), 0);
+    head = latest;
+  } catch (err) {
+    return stoppedEarly("error", err, BigInt(-1), 0);
+  }
+  const latestMs = head.timestamp * BigInt(1e3);
+  const clock = makeBlockClock(pointOf(head), async (number) => {
+    const b = await w.read(() => w.publicClient.getBlock({ blockNumber: number }));
+    return b === null ? null : pointOf(b);
+  });
+  blockReads = clock.reads;
+  const place = async (find, fromIndex) => {
     try {
-      const block = await w.read(() => w.publicClient.getBlock(which));
-      return block === null ? { stop: stoppedEarly("rate_limited", null, latestBlock, fromIndex, driftBlocks2) } : { block };
+      const block = await find();
+      return block === null ? { stop: stoppedEarly("rate_limited", null, head.number, fromIndex) } : { block };
     } catch (err) {
-      return { stop: stoppedEarly("error", err, latestBlock, fromIndex, driftBlocks2) };
+      return { stop: stoppedEarly("error", err, head.number, fromIndex) };
     }
   };
-  const latest = await readOrStop({ blockTag: "latest" }, BigInt(-1), 0, BigInt(0));
-  if ("stop" in latest) return latest.stop;
-  const head = latest.block;
-  const latestMs = head.timestamp * BigInt(1e3);
-  let driftBlocks = BigInt(0);
-  const clamp = (b) => b < BigInt(0) ? BigInt(0) : b > head.number ? head.number : b;
-  const blockAt = (ms, drift = BigInt(0)) => clamp(blockNumberAt(head, ms) - drift);
   const foundCopies = /* @__PURE__ */ new Set();
   const lastIndexOfCopy = /* @__PURE__ */ new Map();
   for (const [i, x] of specs.entries()) lastIndexOfCopy.set(copyKey(x), i);
@@ -55766,66 +55864,61 @@ async function scanWitnessWindows(n, streamId, specs, opts = {}) {
       break;
     }
     if (foundCopies.has(copyKey(spec))) {
-      windows.push({ kind: spec.kind, n: spec.n.toString(), from: blockAt(fromMs).toString(), to: (open ? head.number : blockAt(toMs)).toString(), found: 0, calls: 0, extended: false, status: "found" });
+      windows.push({ kind: spec.kind, n: spec.n.toString(), from: null, to: null, found: 0, calls: 0, extended: false, status: "found" });
       continue;
     }
-    let drift = BigInt(0);
-    const guess = blockAt(fromMs);
-    if (guess < head.number) {
-      const probe = await readOrStop({ blockNumber: guess }, head.number, index2, driftBlocks);
-      if ("stop" in probe) return probe.stop;
-      const measured = (probe.block.timestamp * BigInt(1e3) - fromMs) / BASE_BLOCK_MS;
-      if (measured > BigInt(-1800) && measured < BigInt(1800)) drift = measured;
-      else driftRejected = measured;
-      if ((drift < BigInt(0) ? -drift : drift) > (driftBlocks < BigInt(0) ? -driftBlocks : driftBlocks)) driftBlocks = drift;
-    }
-    const from15 = blockAt(fromMs, drift);
-    const to = open ? head.number : blockAt(toMs, drift);
     const recipient = hex(spec.key.subarray(12));
     const keyHex = toHex(spec.key);
     const callsBefore = w.state.calls;
     let found = 0;
     let stopped = false;
-    let end = to;
     let extended = false;
     let extensionSkipped = false;
     const part = async (partFrom, partTo) => {
-      const r = await w.walk(partFrom, partTo, recipient);
+      const r = await w.walk(partFrom, partTo, recipient, keyHex);
       hits.push(...r.hits);
       found += r.hits.filter((h) => h.key === keyHex).length;
       stopped = r.stopped;
-      end = stopped ? r.covered : partTo;
       if (r.error !== null) error = messageOf(r.error);
+      return r.covered;
     };
+    const at = await place(() => clock.rangeStart(spec.atMs), index2);
+    if ("stop" in at) return at.stop;
+    const to = await place(() => clock.rangeEnd(toMs), index2);
+    if ("stop" in to) return to.stop;
+    let readFrom = at.block;
+    let readTo = await part(at.block, to.block);
+    if (found === 0 && !stopped) {
+      const from15 = await place(() => clock.rangeStart(fromMs), index2);
+      if ("stop" in from15) return from15.stop;
+      if (from15.block < at.block) {
+        await part(from15.block, at.block - BigInt(1));
+        if (!stopped) readFrom = from15.block;
+      }
+    }
     const lastWindowOfCopy = lastIndexOfCopy.get(copyKey(spec)) === index2;
-    await part(from15, to);
-    if (!stopped && found === 0 && !open && lastWindowOfCopy) {
+    if (found === 0 && !stopped && !open && lastWindowOfCopy) {
       const extToMs = toMs + extension;
-      const extTo = blockAt(extToMs, drift);
-      if (extTo > to) {
+      const extTo = await place(() => clock.rangeEnd(extToMs), index2);
+      if ("stop" in extTo) return extTo.stop;
+      if (extTo.block > to.block) {
         if (extensions < maxExtensions) {
           extensions++;
           extended = true;
-          await part(to + BigInt(1), extTo);
+          readTo = await part(to.block + BigInt(1), extTo.block);
         } else extensionSkipped = true;
       }
       if (found === 0 && !stopped && extToMs > latestMs) open = true;
     }
     const status = found > 0 ? "found" : stopped || extensionSkipped ? "not_walked" : open ? "open" : "missing";
     if (found > 0) foundCopies.add(copyKey(spec));
-    windows.push({ kind: spec.kind, n: spec.n.toString(), from: from15.toString(), to: end.toString(), found, calls: w.state.calls - callsBefore, extended, status });
+    windows.push({ kind: spec.kind, n: spec.n.toString(), from: readFrom.toString(), to: readTo.toString(), found, calls: w.state.calls - callsBefore, extended, status });
     if (error !== null) {
       notWalkedRest(index2 + 1);
       break;
     }
   }
-  return finish(head.number, driftBlocks);
-}
-async function blockAtOrBefore(n, timeMs, marginBlocks = BigInt(900)) {
-  const { publicClient } = baseClients(n);
-  const latest = await publicClient.getBlock({ blockTag: "latest" });
-  const guess = blockNumberAt(latest, timeMs) - marginBlocks;
-  return guess > BigInt(0) ? guess : BigInt(0);
+  return finish(head.number);
 }
 
 // src/lib/byk-chain/cache-proof.ts
@@ -55963,7 +56056,7 @@ async function proveCachedSequences(conn, streamId, stored, through, opts = {}) 
 }
 
 // src/lib/byk-chain/checkpoint.ts
-var CHECKPOINT_BASE_REWIND = BigInt(1800);
+var CHECKPOINT_BASE_REWIND_MS = BigInt(36e5);
 var HEX64 = /^(0x)?[0-9a-f]{64}$/i;
 var DIGITS = /^\d+$/;
 var BASE58 = /^[1-9A-HJ-NP-Za-km-z]{32,128}$/;
@@ -55993,10 +56086,9 @@ function parseCheckpoint(text, streamHex, network, label = "--checkpoint") {
 function checkpointCommitment(cp) {
   return fromHex(cp.commitment.replace(/^0x/i, "").toLowerCase());
 }
-function checkpointBaseFrom(cp, rewind = CHECKPOINT_BASE_REWIND) {
+function checkpointBaseScanned(cp) {
   if (cp.base_scanned_to === void 0 || cp.base_scanned_to === null) return null;
-  const from15 = BigInt(cp.base_scanned_to) - rewind;
-  return from15 > BigInt(0) ? from15 : BigInt(0);
+  return BigInt(cp.base_scanned_to);
 }
 function checkpointWindowsThrough(cp) {
   return cp.base_windows_through === void 0 || cp.base_windows_through === null ? BigInt(-1) : BigInt(cp.base_windows_through);
@@ -56082,14 +56174,16 @@ var USAGE = `byk-verify: independent verifier of a BYK Data Layer stream (reads 
     --base-rpc <url>          Base endpoint (default https://mainnet.base.org, or BASE_RPC_URL)
     --base-scan windows|range windows (default): each expected Base copy is looked for in a short block range around the
                               time the engine sent it (the end of the manifest's window, the Solana anchor's time for the
-                              genesis core and a log entry), about fifty calls a copy on a free endpoint that caps
-                              eth_getLogs at ten blocks (a copy with no Solana twin is invisible to this mode, and the
-                              genesis core must be on the Solana endpoint: an archive one); range: one pass over every
-                              block since genesis (or the checkpoint, or --base-from-block), the full enumeration, for an
-                              endpoint that allows thousands of blocks per call
+                              genesis core and a log entry), read from that time on and no further than the copy: about
+                              thirty calls a copy on a free endpoint that caps eth_getLogs at ten blocks, at Base's five
+                              blocks a second (a copy with no Solana twin is invisible to this mode, and the genesis core
+                              must be on the Solana endpoint: an archive one); range: one pass over every block since
+                              genesis (or the checkpoint, or --base-from-block), the full enumeration, for an endpoint
+                              that allows thousands of blocks per call
     --base-from-block <n>     first Base block of a range scan (default: the genesis time, or the checkpoint's last scanned block)
-    --base-extension-hours <h> windows mode: how far beyond its window a copy that is not there is looked for (default 6;
-                              a periodic full run may pass 24 to settle a copy the daily runs reported MISSING)
+    --base-extension-hours <h> windows mode: how far beyond its window a copy that is not there is looked for (default 6,
+                              which is 108,000 blocks: 54 calls where a call may span 2,000 blocks, 10,800 where it
+                              may span ten; more hours settle a copy an earlier run reported MISSING)
     --no-base                 skip the Base witness (the verdict rests on Solana under the beta profile)
     --checkpoint <file>       continue from a checkpoint written by an earlier run (--checkpoint-out)
     --checkpoint-out <file>   after a run that passed, write the last CANONICAL sequence for the next run
@@ -56172,9 +56266,9 @@ async function main() {
   if (useBase && baseMode === "range") {
     try {
       await assertBaseRpc(baseNet);
-      const cpBaseFrom = cp ? checkpointBaseFrom(cp) : null;
-      rangeFromGenesis = baseFromFlag === void 0 && cpBaseFrom === null && solCore !== void 0;
-      const baseFrom = baseFromFlag !== void 0 ? BigInt(baseFromFlag) : cpBaseFrom !== null ? cpBaseFrom : await blockAtOrBefore(baseNet, sinceMs);
+      const cpBaseScanned = cp ? checkpointBaseScanned(cp) : null;
+      rangeFromGenesis = baseFromFlag === void 0 && cpBaseScanned === null && solCore !== void 0;
+      const baseFrom = baseFromFlag !== void 0 ? BigInt(baseFromFlag) : cpBaseScanned !== null ? { rewindFrom: cpBaseScanned, rewindMs: CHECKPOINT_BASE_REWIND_MS } : { timeMs: sinceMs };
       baseScan = await scanStreamAttestations(baseNet, streamId, baseFrom);
       for (const [k, list] of baseScan.byWitnessKey) baseHits.set(k, list);
     } catch (err) {
@@ -56291,8 +56385,8 @@ async function main() {
     const w = baseWindows;
     const of = (kind) => w.copies.filter((x) => x.kind === kind).length;
     const stop = !w.complete ? w.stopReason === "rate_limited" ? " \xB7 STOPPED EARLY: the endpoint kept throttling; the windows after that are not walked" : w.stopReason === "error" ? ` \xB7 STOPPED EARLY: the endpoint failed (${oneLine(w.error ?? "", 160)}); the windows after that are not walked` : " \xB7 STOPPED EARLY: call budget; the windows after that are not walked" : "";
-    say(`base witness   windows mode: ${w.copies.length} expected cop${w.copies.length === 1 ? "y" : "ies"} (genesis ${of("genesis")}, log ${of("al")}, data ${of("data")}${fixedSkipped ? "; genesis and log windows walked by the run that wrote the checkpoint" : ""}) in ${w.windows.length} window${w.windows.length === 1 ? "" : "s"} \xB7 found ${w.found} \xB7 missing ${w.missing} \xB7 still open ${w.open} \xB7 not walked ${w.notWalked} \xB7 ${w.calls} calls of up to ${w.chunkUsed + BigInt(1)} blocks${unplacedFixed ? ` \xB7 ${unplacedFixed} not placed (no block time on Solana)` : ""}${w.driftBlocks !== BigInt(0) ? ` \xB7 clock drift ${w.driftBlocks} blocks` : ""}${w.driftRejected !== null ? ` \xB7 WARNING: the probe block disagreed with the arithmetic by ${w.driftRejected} blocks, not believed; the windows stand on the arithmetic` : ""}${stop}`);
-    for (const c of w.copies) if (c.status === "missing") say(`base witness   MISSING: ${c.kind === "data" ? `manifest ${c.n}` : c.kind === "al" ? `log entry ${c.n}` : "genesis core"} has no Base copy in ${w.windows.filter((x) => x.kind === c.kind && x.n === c.n).map((x) => `blocks ${x.from} to ${x.to}${x.extended ? " (extended)" : ""}`).join(" nor ")}; a run without --checkpoint and with --base-extension-hours 24, or range mode (--base-scan range), looks further`);
+    say(`base witness   windows mode: ${w.copies.length} expected cop${w.copies.length === 1 ? "y" : "ies"} (genesis ${of("genesis")}, log ${of("al")}, data ${of("data")}${fixedSkipped ? "; genesis and log windows walked by the run that wrote the checkpoint" : ""}) in ${w.windows.length} window${w.windows.length === 1 ? "" : "s"} \xB7 found ${w.found} \xB7 missing ${w.missing} \xB7 still open ${w.open} \xB7 not walked ${w.notWalked} \xB7 ${w.calls} calls of up to ${w.chunkUsed + BigInt(1)} blocks${unplacedFixed ? ` \xB7 ${unplacedFixed} not placed (no block time on Solana)` : ""} \xB7 ${w.blockReads} block${w.blockReads === 1 ? "" : "s"} read to place the windows${stop}`);
+    for (const c of w.copies) if (c.status === "missing") say(`base witness   MISSING: ${c.kind === "data" ? `manifest ${c.n}` : c.kind === "al" ? `log entry ${c.n}` : "genesis core"} has no Base copy in ${w.windows.filter((x) => x.kind === c.kind && x.n === c.n).map((x) => `blocks ${x.from} to ${x.to}${x.extended ? " (extended)" : ""}`).join(" nor ")}; a run without --checkpoint and with more --base-extension-hours (every hour is 18,000 blocks at Base's five a second: nine calls where a call may span 2,000 blocks, 1,800 where it may span ten), or range mode (--base-scan range), looks further`);
     if (w.latestBlock < BigInt(0)) warnBaseWindows();
   }
   for (const [s] of witness) {
@@ -56367,7 +56461,7 @@ async function main() {
     written = { stream_id: streamHex, network, sequence: cpSequence.toString(), commitment: toHex(cpRow.commitment), history_unresolved_before: cpRow.flags.includes("HISTORY_UNRESOLVED_BEFORE") || seedHistory, al_head: { log_seq: al.head.logSeq.toString(), entry_hash: toHex(al.head.entryHash) }, solana_slot: witness.get(cpSequence.toString())?.slot ?? null, base_scanned_to: baseTo >= BigInt(0) ? baseTo.toString() : null, base_windows_through: windowsThrough >= BigInt(0) ? windowsThrough.toString() : null, base_fixed_windows: fixedWindows, as_of: new Date(Number(asOf)).toISOString(), previous: cp ? { sequence: cp.sequence, commitment: cp.commitment } : null, newest_signatures: newestSignatures };
     writeFileSync(cpOut, JSON.stringify(written, null, 1) + "\n");
   }
-  const baseSummary = baseScan ? { mode: "range", from: baseScan.scannedFrom.toString(), to: baseScan.scannedTo.toString(), calls: baseScan.calls, complete: baseScan.complete, stop: baseScan.stopReason } : baseWindows ? { mode: "windows", copies: baseWindows.copies.length, windows: baseWindows.windows.length, found: baseWindows.found, missing: baseWindows.missing, open: baseWindows.open, not_walked: baseWindows.notWalked, unplaced: unplacedFixed, fixed_windows_from_checkpoint: fixedSkipped, calls: baseWindows.calls, chunk: baseWindows.chunkUsed.toString(), latest_block: baseWindows.latestBlock.toString(), drift_blocks: baseWindows.driftBlocks.toString(), drift_rejected: baseWindows.driftRejected?.toString() ?? null, complete: baseWindows.complete, stop: baseWindows.stopReason, error: baseWindows.error !== null ? oneLine(baseWindows.error, 400) : null } : null;
+  const baseSummary = baseScan ? { mode: "range", from: baseScan.scannedFrom.toString(), to: baseScan.scannedTo.toString(), calls: baseScan.calls, complete: baseScan.complete, stop: baseScan.stopReason } : baseWindows ? { mode: "windows", copies: baseWindows.copies.length, windows: baseWindows.windows.length, found: baseWindows.found, missing: baseWindows.missing, open: baseWindows.open, not_walked: baseWindows.notWalked, unplaced: unplacedFixed, fixed_windows_from_checkpoint: fixedSkipped, calls: baseWindows.calls, chunk: baseWindows.chunkUsed.toString(), latest_block: baseWindows.latestBlock.toString(), block_reads: baseWindows.blockReads, complete: baseWindows.complete, stop: baseWindows.stopReason, error: baseWindows.error !== null ? oneLine(baseWindows.error, 400) : null } : null;
   const verdict = seed === void 0 || proof?.proven === true && !incomplete ? "full" : "resumed";
   if (json) console.log(JSON.stringify({ stream_id: streamHex, network, as_of: new Date(Number(asOf)).toISOString(), s_max: sMax.toString(), al_status: al.status, incomplete, base_scan_incomplete: baseIncomplete, base_scan_error: baseError, base_scan: baseSummary, base_copies: baseWindows ? baseWindows.copies : null, base_windows: baseWindows ? baseWindows.windows : null, verdict, cache_proof: proof ? { proven: proof.proven, witness: "solana", checked: proof.checked, changed: proof.changed, inadmissible: proof.inadmissible, calls: proof.calls, reason: proof.reason, sequence: proof.sequence } : null, resolved_from: cp ? { sequence: cp.sequence, commitment: cp.commitment, note: verdict === "full" ? "reader checkpoint from an earlier run: sequences before it were not re-read, but every data witness key before it was shown to carry nothing new on the Solana witness since that run (cache proof), so the cached results are provably identical to a full evaluation and this is a full verdict under rc6 13.7" : proof?.proven ? "reader checkpoint from an earlier run: the cache proof held, but a Solana enumeration of this run was incomplete, so this is a resumed verdict" : "reader checkpoint from an earlier run: sequences before it were not re-read, so this is a resumed verdict, not the full rc6 13.7 one" } : null, checkpoint_written: written ? { path: cpOut, sequence: written.sequence } : null, checkpoint_kept: cpOut !== void 0 && !written ? baseUnread ? "the Base witness was not read" : !passed ? "the run did not pass" : heldBy !== null ? `the Base window of sequence ${heldBy} is not walked yet` : "nothing to write" : null, checkpoint_held_before: written && heldBy !== null && BigInt(written.sequence) < head ? heldBy.toString() : null, checked, canonical, passed, sequences: rows }, null, 1));
   else {

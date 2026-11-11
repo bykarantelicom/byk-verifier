@@ -11,6 +11,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 
 import { type Bytes, easDataOf, easSchemaUid, EAS_AL_SCHEMA, EAS_DATA_SCHEMA, EAS_GENESIS_SCHEMA, equal, fromHex, parseEasData, toHex, type WitnessPayload, witnessKeyOf } from "../index";
+import { type BlockPoint, makeBlockClock } from "./block-clock";
 
 export const SCHEMA_REGISTRY_ADDRESS = "0x4200000000000000000000000000000000000020" as const;
 export const BASE_SEPOLIA_RPC = "https://sepolia.base.org";
@@ -180,7 +181,7 @@ export async function readAttestations(n: BaseNetwork, witnessKey: Bytes, stream
  *  Public endpoints cap eth_getLogs at 10,000 blocks, so the range is walked in chunks; the filter is the
  *  Attested topic plus the three schema UIDs (topic 3), and each hit is read back from the contract and kept
  *  only when it is admissible AND its recipient is the witness key its own payload implies (Section 12.6).
- *  `fromBlock` comes from the genesis time: Base produces a block every 2 seconds. */
+ *  The pass starts at a block, or at a time looked up on the chain (RangeStart below). */
 /** How many blocks one eth_getLogs call may span. Every endpoint has its own cap and they do not agree: Base
  *  Sepolia answers 10,000, Base mainnet refuses anything above 2,000, others use different words for the same
  *  refusal. So the scan starts wide, reads the limit out of the error when the endpoint states one, otherwise
@@ -271,6 +272,8 @@ function groupHits(hits: Hit[]): Map<string, BaseAnchor[]> {
   return byWitnessKey;
 }
 
+const pointOf = (b: { number: bigint; timestamp: bigint }): BlockPoint => ({ number: b.number, timeMs: b.timestamp * BigInt(1000) });
+
 /* One adaptive walker shared by the range scan and the windows scan (2026-10-18). The eth_getLogs window grows after
  * consecutive successes and shrinks to what the endpoint states in a refusal, throttling is waited out a bounded number of
  * times, every hit is read back from the contract and judged for admissibility (Section 12.6), and a budget of calls ends the
@@ -323,10 +326,12 @@ function makeWalker(n: BaseNetwork, streamId: Bytes, opts: ScanOptions) {
    *  actually read (`from` minus one when none); `stopped` when the budget, the throttling or an error ended the walk, which
    *  also ends every later walk of this walker; `error` carries an error that is neither a range refusal nor throttling (a
    *  bare 400, a timeout, a 5xx), with what was read before it. A chunk whose hits were not all read back is not covered:
-   *  the next run reads it again. */
-  async function walk(from: bigint, to: bigint, recipient?: Hex): Promise<{ covered: bigint; hits: Hit[]; stopped: boolean; error: unknown }> {
+   *  the next run reads it again. With `untilKey` (a full witness key, hex) the walk ends at the chunk that holds an
+   *  admissible anchor under that key: `covered` is that chunk's last block and nothing after it is read. */
+  async function walk(from: bigint, to: bigint, recipient?: Hex, untilKey?: string): Promise<{ covered: bigint; hits: Hit[]; stopped: boolean; error: unknown }> {
     const hits: Hit[] = [];
     let covered = from - BigInt(1);
+    let reached = false;
     if (state.stopReason !== null) return { covered, hits, stopped: true, error: null };
     for (let at = from; at <= to; ) {
       const end = at + state.span > to ? to : at + state.span;
@@ -382,7 +387,9 @@ function makeWalker(n: BaseNetwork, streamId: Bytes, opts: ScanOptions) {
           state.inadmissible++;
           continue;
         }
-        hits.push({ key: toHex(admissible.key), anchor: admissible.anchor });
+        const key = toHex(admissible.key);
+        hits.push({ key, anchor: admissible.anchor });
+        if (key === untilKey) reached = true;
       }
       // the window grows only on calls that exercised the whole span: a short window proves nothing about a wider one
       if (end - at === state.span) {
@@ -392,6 +399,7 @@ function makeWalker(n: BaseNetwork, streamId: Bytes, opts: ScanOptions) {
       state.rateLimitWaits = 0;
       state.errorRetries = 0;
       covered = end;
+      if (reached) break;
       at = end + BigInt(1);
     }
     return { covered, hits, stopped: false, error: null };
@@ -404,38 +412,69 @@ function makeWalker(n: BaseNetwork, streamId: Bytes, opts: ScanOptions) {
  *  one query per witness key. The filter is the Attested topic plus the three schema UIDs (topic 3); the full enumeration of
  *  Section 12.7 when the endpoint allows thousands of blocks per call (public endpoints cap eth_getLogs at 2,000 or 10,000
  *  blocks, a free keyed one at ten, and this pass costs a call per cap). A bounded amount of work: beyond it the Base side is
- *  reported INCOMPLETE. 600 calls of 1,999 blocks covered 27.8 days on a 2,000-block endpoint and the stream passed that age
- *  on 18 Oct 2026; 1,500 keeps a full scan from genesis under the cap for about 69 days there (years on a 10,000-block
- *  endpoint), and a reader checkpoint bounds a daily run anyway. */
+ *  reported INCOMPLETE. The budget counts calls, and a call covers a fifth of the time it did before Base's 5 Nov 2026
+ *  upgrade (five blocks a second, 432,000 a day): RANGE_MAX_CALLS reads about 46 days of today's chain on an endpoint
+ *  that allows 2,000 blocks a call and about 230 days on one that allows 10,000 (the stream's first seven weeks, at the
+ *  old pace, take about 1,000 and 200 of those calls). A pass the budget ends says so and a reader checkpoint carries the
+ *  last block it covered, so the next range run continues from there; --base-from-block starts anywhere. */
 export type RangeScan = { byWitnessKey: Map<string, BaseAnchor[]>; inadmissible: number; scannedFrom: bigint; scannedTo: bigint; latestBlock: bigint; latestTimeMs: bigint; chunkUsed: bigint; calls: number; complete: boolean; stopReason: BaseScanStop | null };
-export async function scanStreamAttestations(n: BaseNetwork, streamId: Bytes, fromBlock: bigint, opts: ScanOptions = {}): Promise<RangeScan> {
-  const w = makeWalker(n, streamId, opts);
-  const start = fromBlock < BigInt(0) ? BigInt(0) : fromBlock;
+export const RANGE_MAX_CALLS = 10_000;
+/** Where a range scan starts: a block number as given; a time (the genesis time), the pass starting `marginMs` of chain
+ *  time before it; or a block an earlier pass covered (a checkpoint's), the pass starting `rewindMs` of chain time before
+ *  that block. The last two are turned into a block through the chain's own block times, never through an assumed pace. */
+export type RangeStart = bigint | { timeMs: bigint; marginMs?: bigint } | { rewindFrom: bigint; rewindMs: bigint };
+/** Half an hour before a start given as a time. */
+export const RANGE_START_MARGIN_MS = BigInt(1_800_000);
+export async function scanStreamAttestations(n: BaseNetwork, streamId: Bytes, from: RangeStart, opts: ScanOptions = {}): Promise<RangeScan> {
+  const w = makeWalker(n, streamId, { ...opts, maxCalls: opts.maxCalls ?? RANGE_MAX_CALLS });
   // the latest block goes through the same throttle wait as every other read; throttled for good, the scan is an honest nothing
   const latest = await w.read(() => w.publicClient.getBlock({ blockTag: "latest" }));
-  if (latest === null) w.state.stopReason = "rate_limited";
-  const r = latest === null ? { hits: [], covered: start - BigInt(1), stopped: true, error: null } : await w.walk(start, latest.number);
+  /* A start that is not a block number is looked up with the walker's own reads (paced, a throttle waited out, a transient
+   * error tried again); a read throttled for good leaves the pass an honest nothing, like the latest block above. */
+  let placed: bigint | null = typeof from === "bigint" ? from : null;
+  if (typeof from !== "bigint" && latest !== null) {
+    const readPoint = async (number: bigint): Promise<BlockPoint | null> => {
+      const b = await w.read(() => w.publicClient.getBlock({ blockNumber: number }));
+      return b === null ? null : pointOf(b);
+    };
+    const clock = makeBlockClock(pointOf(latest), readPoint);
+    if ("timeMs" in from) placed = await clock.rangeStart(from.timeMs - (from.marginMs ?? RANGE_START_MARGIN_MS));
+    else {
+      const covered = from.rewindFrom >= latest.number ? pointOf(latest) : await readPoint(from.rewindFrom < BigInt(0) ? BigInt(0) : from.rewindFrom);
+      placed = covered === null ? null : await clock.rangeStart(covered.timeMs - from.rewindMs);
+    }
+  }
+  if (latest === null || placed === null) w.state.stopReason = "rate_limited";
+  const start = placed === null || placed < BigInt(0) ? BigInt(0) : placed;
+  const r = latest === null || placed === null ? { hits: [], covered: start - BigInt(1), stopped: true, error: null } : await w.walk(start, latest.number);
   if (r.error !== null) throw r.error; // range mode keeps its contract: an error that is neither a refusal nor throttling surfaces
   return { byWitnessKey: groupHits(r.hits), inadmissible: w.state.inadmissible, scannedFrom: start, scannedTo: r.covered, latestBlock: latest?.number ?? BigInt(-1), latestTimeMs: latest ? latest.timestamp * BigInt(1000) : BigInt(-1), chunkUsed: w.state.span, calls: w.state.calls, complete: !r.stopped, stopReason: w.state.stopReason };
 }
 
-/* Windows mode (2026-10-18). Under the beta profile the engine sends the Base copy of an anchor in the same tick as its
- * Solana copy (measured on the live stream: 1 to 34 seconds after it, the daily manifest 49 to 63 seconds after midnight),
- * so a verifier that has read the Solana anchors knows where every Base copy is expected: a short block range around the
- * time the engine sent it. For a data manifest that time is the end of its window (the engine seals at T+45 s and anchors
- * at once; a Solana transaction that is dropped and sent again lands later, which is why the Solana block time alone would
- * place the window too late), for the genesis core and a log entry it is the Solana anchor's block time. Each expected copy
- * is looked for with the per-key filter of Section 12.7 (topic 1 = recipient, topic 3 = schema UID) inside that range, which
- * costs one call on a 2,000-block endpoint and about fifty on a free keyed one that caps eth_getLogs at ten blocks; a full
- * run over a month-old stream stays around two thousand calls either way. What it does not do is enumerate a witness key
- * over the whole chain: a copy outside its window (sent hours late, or by someone else, or with no Solana twin) is only
- * seen by range mode, so a window with no copy is reported as MISSING and the range pass remains the full enumeration.
- * Base blocks are two seconds apart, so a time maps to a block by arithmetic from the latest block; each window's start is
- * checked against a real block (one read per copy) and the window moves by the difference, so a stretch of slower or
- * faster blocks shifts only the windows it touches instead of every one. A copy is one expected
- * attestation; the placement in windows.ts gives each copy one window today, and the pass accepts several per copy (the
- * copy is found when any of them finds it, extended only at its last one), so a placement may split a window later
- * without touching the pass. */
+/* Windows mode (2026-10-18; the block clock and the search order 2026-11-11). Under the beta profile the engine sends the
+ * Base copy of an anchor in the same tick as its Solana copy (measured on the live stream: every daily manifest's copy 49
+ * to 73 seconds after the end of its window, 56 of 56 by 11 Nov 2026 apart from the two anchored at the mainnet switch),
+ * so a verifier that has read the Solana anchors knows where every Base copy is expected: a short stretch of blocks around
+ * the time the engine sent it. For a data manifest that time is the end of its window (the engine seals at T+45 s and
+ * anchors at once; a Solana transaction that is dropped and sent again lands later, which is why the Solana block time
+ * alone would place the window too late), for the genesis core and a log entry it is the Solana anchor's block time.
+ * Each expected copy is looked for with the per-key filter of Section 12.7 (topic 1 = recipient, topic 3 = schema UID).
+ * What it does not do is enumerate a witness key over the whole chain: a copy outside its window (sent hours late, or by
+ * someone else, or with no Solana twin) is only seen by range mode, so a window with no copy is reported as MISSING and
+ * the range pass remains the full enumeration.
+ * A time becomes a block through the chain's own block times (block-clock.ts): Base made a block every two seconds until
+ * 5 Nov 2026 and five a second since, and the arithmetic this pass used before placed every window of the new chain a
+ * million blocks from its copy.
+ * The stretch is read in the order the copy is likely to be in and no further than the copy: first from the expected time
+ * to the end of the window, then the lead before the expected time, then the hours beyond the window, each part only when
+ * the one before it held nothing, and a part ends at the chunk that holds the copy. Reading on after the copy would add
+ * nothing this mode can vouch for (a second anchor under the key a few minutes later is seen, one an hour later is not,
+ * and only range mode sees both), and at five blocks a second it would cost ten times what it did: a fifteen-minute
+ * window is 4,500 blocks, 450 calls on a free keyed endpoint that answers ten blocks a call, where the copy itself sits
+ * about 300 blocks, 30 calls, after the expected time.
+ * A copy is one expected attestation; the placement in windows.ts gives each copy one window today, and the pass accepts
+ * several per copy (the copy is found when any of them finds it, extended only at its last one), so a placement may split
+ * a window later without touching the pass. */
 export type WindowSpec = { key: Bytes; kind: "genesis" | "al" | "data"; n: bigint; atMs: bigint; untilMs?: bigint; beforeMs?: bigint };
 /** found: a copy was read; open: the range runs to the chain head, the copy may not be there yet; not_walked: the pass
  *  stopped (budget, throttling, an endpoint error) before this range was read to the end; missing: read to the end and
@@ -443,14 +482,15 @@ export type WindowSpec = { key: Bytes; kind: "genesis" | "al" | "data"; n: bigin
  *  window end and one at the Solana anchor): the copy is found when any window found it, open or not walked when any
  *  window is, missing only when every window is. */
 export type CopyStatus = "found" | "missing" | "open" | "not_walked";
-/** `to` is the last block this window was read to: its end, its extension's end, or where the pass stopped; both null for
- *  a window the pass never reached. */
+/** `from` and `to` bound the blocks read for this window: from the expected time (from the start of the lead once the
+ *  lead was read to its end) to the end of the window, of its extension, of the chunk that held the copy, or to where
+ *  the pass stopped. Both null for a window the pass never reached and for a later window of a copy already found. */
 export type WindowResult = { kind: "genesis" | "al" | "data"; n: string; from: string | null; to: string | null; found: number; calls: number; extended: boolean; status: CopyStatus };
 export type CopyResult = { kind: "genesis" | "al" | "data"; n: string; status: CopyStatus; windows: number; found: number };
 export type WindowsOptions = ScanOptions & { beforeMs?: bigint; afterMs?: bigint; extensionMs?: bigint; maxExtensions?: number };
-/** `driftBlocks`: the largest correction any window needed (signed, the one farthest from zero); `driftRejected`: a window's
- *  measured drift beyond an hour, not believed, that window placed by the arithmetic alone. */
-export type WindowsScan = { byWitnessKey: Map<string, BaseAnchor[]>; inadmissible: number; windows: WindowResult[]; copies: CopyResult[]; found: number; missing: number; open: number; notWalked: number; calls: number; chunkUsed: bigint; complete: boolean; stopReason: BaseScanStop | null; error: string | null; latestBlock: bigint; driftBlocks: bigint; driftRejected: bigint | null };
+/** `blockReads`: the blocks read to turn the windows' times into block numbers (they are not eth_getLogs calls and do not
+ *  count against the budget). */
+export type WindowsScan = { byWitnessKey: Map<string, BaseAnchor[]>; inadmissible: number; windows: WindowResult[]; copies: CopyResult[]; found: number; missing: number; open: number; notWalked: number; calls: number; chunkUsed: bigint; complete: boolean; stopReason: BaseScanStop | null; error: string | null; latestBlock: bigint; blockReads: number };
 /** Two minutes before the expected send time: the copy was never seen earlier than the tick that sent it. */
 export const WINDOW_BEFORE_MS = BigInt(120_000);
 /** Thirty minutes before for a window placed from a Solana block time alone (the genesis core, a log entry): a Solana
@@ -462,18 +502,13 @@ export const WINDOW_AFTER_MS = BigInt(900_000);
  *  its Base endpoint), for every such window; the call budget bounds the total, and a window the budget cuts short is
  *  reported not walked, never missing. */
 export const WINDOW_EXTENSION_MS = BigInt(21_600_000);
-export const BASE_BLOCK_MS = BigInt(2_000);
-/** About 52 calls per daily copy on an endpoint that answers ten blocks per call: this covers a year of daily windows,
- *  or a shorter stream with a few extensions, in well under an hour at the endpoint's pace. */
+/** The budget of eth_getLogs calls, sized for an endpoint that answers ten blocks a call at Base's five blocks a second:
+ *  a copy that is where it is expected costs about 30 calls, so a year of daily copies is about 11,000; a copy that is
+ *  not there costs its whole window and the six hours beyond it, about 11,300 calls and three quarters of an hour at
+ *  such an endpoint's pace. The budget settles one such copy in a run, or a year of copies that are all there; the
+ *  windows it does not reach are reported not walked and the next run reads them. An endpoint that answers 2,000 blocks
+ *  a call spends three calls on a window and 54 on the six hours. */
 export const WINDOWS_MAX_CALLS = 20_000;
-
-/** The block that was current at `timeMs` on a chain with a fixed block time, by arithmetic from the latest block. */
-export function blockNumberAt(latest: { number: bigint; timestamp: bigint }, timeMs: bigint, blockMs = BASE_BLOCK_MS): bigint {
-  const latestMs = latest.timestamp * BigInt(1000);
-  const behind = timeMs < latestMs ? (latestMs - timeMs) / blockMs : BigInt(0);
-  const b = latest.number - behind;
-  return b < BigInt(0) ? BigInt(0) : b;
-}
 
 const copyKey = (x: { kind: string; n: string | bigint }) => `${x.kind}:${x.n.toString()}`;
 
@@ -508,37 +543,45 @@ export async function scanWitnessWindows(n: BaseNetwork, streamId: Bytes, specs:
     for (const rest of specs.slice(fromIndex)) windows.push({ kind: rest.kind, n: rest.n.toString(), from: null, to: null, found: 0, calls: 0, extended: false, status: "not_walked" });
   };
   let error: string | null = null;
-  let driftRejected: bigint | null = null;
-  const finish = (latestBlock: bigint, driftBlocks: bigint): WindowsScan => {
+  let blockReads = () => 0;
+  const finish = (latestBlock: bigint): WindowsScan => {
     const copies = summariseCopies(specs, windows);
     const count = (st: CopyStatus) => copies.filter((c) => c.status === st).length;
-    // complete: every window read to its end; a pass that stopped after finding a copy read the rest of that window no further
-    return { byWitnessKey: groupHits(hits), inadmissible: w.state.inadmissible, windows, copies, found: count("found"), missing: count("missing"), open: count("open"), notWalked: count("not_walked"), calls: w.state.calls, chunkUsed: w.state.span, complete: windows.every((x) => x.status !== "not_walked") && w.state.stopReason === null, stopReason: w.state.stopReason, error, latestBlock, driftBlocks, driftRejected };
+    // complete: every window read to its end or to its copy
+    return { byWitnessKey: groupHits(hits), inadmissible: w.state.inadmissible, windows, copies, found: count("found"), missing: count("missing"), open: count("open"), notWalked: count("not_walked"), calls: w.state.calls, chunkUsed: w.state.span, complete: windows.every((x) => x.status !== "not_walked") && w.state.stopReason === null, stopReason: w.state.stopReason, error, latestBlock, blockReads: blockReads() };
   };
-  /* A read that fails or is throttled for good before the first window is reported the way a failure inside one is: every
-   * window not walked, the reason on the result, never an exception out of the pass. */
-  const stoppedEarly = (reason: BaseScanStop, err: unknown, latestBlock: bigint, fromIndex: number, driftBlocks: bigint): WindowsScan => {
+  /* A block read that fails or is throttled for good, before the first window or while one is being placed, is reported the
+   * way a failure inside a window is: the windows from there on not walked, the reason on the result, never an exception
+   * out of the pass. */
+  const stoppedEarly = (reason: BaseScanStop, err: unknown, latestBlock: bigint, fromIndex: number): WindowsScan => {
     if (err !== null) error = messageOf(err);
     w.state.stopReason = reason;
     notWalkedRest(fromIndex);
-    return finish(latestBlock, driftBlocks);
+    return finish(latestBlock);
   };
-  /** One block, or the finished pass when the read failed or was throttled for good (the windows from `fromIndex` on not walked). */
-  const readOrStop = async (which: { blockTag: "latest" } | { blockNumber: bigint }, latestBlock: bigint, fromIndex: number, driftBlocks: bigint): Promise<{ block: { number: bigint; timestamp: bigint } } | { stop: WindowsScan }> => {
+  let head: { number: bigint; timestamp: bigint };
+  try {
+    const latest = await w.read(() => w.publicClient.getBlock({ blockTag: "latest" }));
+    if (latest === null) return stoppedEarly("rate_limited", null, BigInt(-1), 0);
+    head = latest;
+  } catch (err) {
+    return stoppedEarly("error", err, BigInt(-1), 0);
+  }
+  const latestMs = head.timestamp * BigInt(1000);
+  const clock = makeBlockClock(pointOf(head), async (number) => {
+    const b = await w.read(() => w.publicClient.getBlock({ blockNumber: number }));
+    return b === null ? null : pointOf(b);
+  });
+  blockReads = clock.reads;
+  /** A block for a time, or the finished pass when the chain could not be read for it (the windows from `fromIndex` on not walked). */
+  const place = async (find: () => Promise<bigint | null>, fromIndex: number): Promise<{ block: bigint } | { stop: WindowsScan }> => {
     try {
-      const block = await w.read(() => w.publicClient.getBlock(which));
-      return block === null ? { stop: stoppedEarly("rate_limited", null, latestBlock, fromIndex, driftBlocks) } : { block };
+      const block = await find();
+      return block === null ? { stop: stoppedEarly("rate_limited", null, head.number, fromIndex) } : { block };
     } catch (err) {
-      return { stop: stoppedEarly("error", err, latestBlock, fromIndex, driftBlocks) };
+      return { stop: stoppedEarly("error", err, head.number, fromIndex) };
     }
   };
-  const latest = await readOrStop({ blockTag: "latest" }, BigInt(-1), 0, BigInt(0));
-  if ("stop" in latest) return latest.stop;
-  const head = latest.block;
-  const latestMs = head.timestamp * BigInt(1000);
-  let driftBlocks = BigInt(0);
-  const clamp = (b: bigint) => (b < BigInt(0) ? BigInt(0) : b > head.number ? head.number : b);
-  const blockAt = (ms: bigint, drift = BigInt(0)): bigint => clamp(blockNumberAt(head, ms) - drift);
   const foundCopies = new Set<string>();
   // the last window of each copy, found in one pass: only that one is extended
   const lastIndexOfCopy = new Map<string, number>();
@@ -554,53 +597,53 @@ export async function scanWitnessWindows(n: BaseNetwork, streamId: Bytes, specs:
       break;
     }
     if (foundCopies.has(copyKey(spec))) {
-      // an earlier window of the same copy found it: nothing to look for here, not even a probe
-      windows.push({ kind: spec.kind, n: spec.n.toString(), from: blockAt(fromMs).toString(), to: (open ? head.number : blockAt(toMs)).toString(), found: 0, calls: 0, extended: false, status: "found" });
+      // an earlier window of the same copy found it: nothing to look for here, not even a block to read
+      windows.push({ kind: spec.kind, n: spec.n.toString(), from: null, to: null, found: 0, calls: 0, extended: false, status: "found" });
       continue;
     }
-    /* One real block checks the arithmetic for this window: the block the arithmetic gives for its start, read, and the
-     * window moved by the difference. A start that the arithmetic puts at the head is not probed (the endpoint's own lag
-     * would read as drift); a drift beyond an hour is not believed, the arithmetic stands, and the value is reported. */
-    let drift = BigInt(0);
-    const guess = blockAt(fromMs);
-    if (guess < head.number) {
-      const probe = await readOrStop({ blockNumber: guess }, head.number, index, driftBlocks);
-      if ("stop" in probe) return probe.stop;
-      const measured = (probe.block.timestamp * BigInt(1000) - fromMs) / BASE_BLOCK_MS; // positive: the chain is later than the arithmetic says, so the window moves back
-      if (measured > BigInt(-1800) && measured < BigInt(1800)) drift = measured;
-      else driftRejected = measured;
-      if ((drift < BigInt(0) ? -drift : drift) > (driftBlocks < BigInt(0) ? -driftBlocks : driftBlocks)) driftBlocks = drift;
-    }
-    const from = blockAt(fromMs, drift);
-    const to = open ? head.number : blockAt(toMs, drift);
     const recipient = hex(spec.key.subarray(12));
     const keyHex = toHex(spec.key);
     const callsBefore = w.state.calls;
     let found = 0;
     let stopped = false;
-    let end = to;
     let extended = false;
     let extensionSkipped = false;
-    /** One walk of this copy's range: its hits kept, the ones for this key counted, where it stopped recorded. */
-    const part = async (partFrom: bigint, partTo: bigint) => {
-      const r = await w.walk(partFrom, partTo, recipient);
+    /** One walk of a part of this copy's range, ended at the copy: its hits kept, the ones for this key counted. The last block read. */
+    const part = async (partFrom: bigint, partTo: bigint): Promise<bigint> => {
+      const r = await w.walk(partFrom, partTo, recipient, keyHex);
       hits.push(...r.hits);
       found += r.hits.filter((h) => h.key === keyHex).length;
       stopped = r.stopped;
-      end = stopped ? r.covered : partTo;
       if (r.error !== null) error = messageOf(r.error); // neither a refusal nor throttling: kept with what was read, reported, never thrown
+      return r.covered;
     };
-    // a copy with another window still ahead is not extended here: its last window extends, if it comes to that
+    // 1 · from the expected time to the end of the window: where every copy of the live stream has been
+    const at = await place(() => clock.rangeStart(spec.atMs), index);
+    if ("stop" in at) return at.stop;
+    const to = await place(() => clock.rangeEnd(toMs), index); // the head, without a read, while the window is still open
+    if ("stop" in to) return to.stop;
+    let readFrom = at.block;
+    let readTo = await part(at.block, to.block);
+    // 2 · the lead before the expected time
+    if (found === 0 && !stopped) {
+      const from = await place(() => clock.rangeStart(fromMs), index);
+      if ("stop" in from) return from.stop;
+      if (from.block < at.block) {
+        await part(from.block, at.block - BigInt(1));
+        if (!stopped) readFrom = from.block;
+      }
+    }
+    // 3 · the hours beyond the window; a copy with another window still ahead is not extended here: its last window extends, if it comes to that
     const lastWindowOfCopy = lastIndexOfCopy.get(copyKey(spec)) === index;
-    await part(from, to);
-    if (!stopped && found === 0 && !open && lastWindowOfCopy) {
+    if (found === 0 && !stopped && !open && lastWindowOfCopy) {
       const extToMs = toMs + extension;
-      const extTo = blockAt(extToMs, drift);
-      if (extTo > to) {
+      const extTo = await place(() => clock.rangeEnd(extToMs), index); // the head when the hours beyond are not over yet
+      if ("stop" in extTo) return extTo.stop;
+      if (extTo.block > to.block) {
         if (extensions < maxExtensions) {
           extensions++;
           extended = true;
-          await part(to + BigInt(1), extTo);
+          readTo = await part(to.block + BigInt(1), extTo.block);
         } else extensionSkipped = true; // the hours beyond were not read: honest not_walked, never missing
       }
       // the hours beyond the window are not over yet (whether or not any of them could be read): not missing, not passed by a checkpoint
@@ -608,19 +651,11 @@ export async function scanWitnessWindows(n: BaseNetwork, streamId: Bytes, specs:
     }
     const status: CopyStatus = found > 0 ? "found" : stopped || extensionSkipped ? "not_walked" : open ? "open" : "missing";
     if (found > 0) foundCopies.add(copyKey(spec));
-    windows.push({ kind: spec.kind, n: spec.n.toString(), from: from.toString(), to: end.toString(), found, calls: w.state.calls - callsBefore, extended, status });
+    windows.push({ kind: spec.kind, n: spec.n.toString(), from: readFrom.toString(), to: readTo.toString(), found, calls: w.state.calls - callsBefore, extended, status });
     if (error !== null) {
       notWalkedRest(index + 1);
       break;
     }
   }
-  return finish(head.number, driftBlocks);
-}
-
-/** The block that was current at `timeMs`, from the fixed 2-second block time, with a safety margin. */
-export async function blockAtOrBefore(n: BaseNetwork, timeMs: bigint, marginBlocks = BigInt(900)): Promise<bigint> {
-  const { publicClient } = baseClients(n);
-  const latest = await publicClient.getBlock({ blockTag: "latest" });
-  const guess = blockNumberAt(latest, timeMs) - marginBlocks;
-  return guess > BigInt(0) ? guess : BigInt(0);
+  return finish(head.number);
 }

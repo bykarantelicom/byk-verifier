@@ -4,8 +4,10 @@
 # the one the checkpoint recorded; nothing new under any of them makes the day's verdict FULL, otherwise it stays RESUMED.
 # Every Sunday: a FULL run from sequence 0 (the rc6 13.7 verdict on the Solana evidence; needs an archive Solana endpoint,
 # hours on a public one). Base is read in windows mode on both days: one short block range per expected copy, which the
-# keyed free endpoint in BASE_RPC_URL completes (it allows ten blocks per eth_getLogs call); the Sunday run looks 24 hours
-# beyond a window with no copy, so a copy the daily runs reported MISSING because it landed late is settled there.
+# keyed free endpoint in BASE_RPC_URL completes (it allows ten blocks per eth_getLogs call). Both runs look six hours
+# beyond a window with no copy. Until 2026-11-11 the Sunday run looked 24 hours beyond: at Base's five blocks a second
+# (since 5 Nov 2026) that is 432,000 blocks, 43,200 calls on this endpoint for one copy, more than the pass's budget, so
+# the copy would end not walked and hold the checkpoint back every week; six hours is 10,800 calls and settles it.
 # Results and the checkpoint are committed back to this repository, so the history of verdicts is public.
 name: verify
 on:
@@ -74,7 +76,7 @@ jobs:
           DAY="${{ steps.mode.outputs.day }}"
           if [ "${{ steps.mode.outputs.mode }}" = "full" ]; then
             OUT="results/$DAY-full.json"
-            node byk-verify.mjs --stream "$STREAM" --network mainnet --base-extension-hours 24 --checkpoint-out state/checkpoint.json --json > "$OUT" 2> "results/$DAY-full.err"
+            node byk-verify.mjs --stream "$STREAM" --network mainnet --checkpoint-out state/checkpoint.json --json > "$OUT" 2> "results/$DAY-full.err"
           else
             OUT="results/$DAY.json"
             node byk-verify.mjs --stream "$STREAM" --network mainnet --checkpoint state/checkpoint.json --checkpoint-out state/checkpoint.json --cache-proof --json > "$OUT" 2> "results/$DAY.err"

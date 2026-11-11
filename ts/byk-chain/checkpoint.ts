@@ -21,7 +21,7 @@ export type CheckpointFile = {
   /** the authorization log head that run saw; a different head refuses the checkpoint */
   al_head?: { log_seq: string; entry_hash: string } | null;
   solana_slot?: number | null;
-  /** range mode: the last Base block that run scanned completely; the next run starts CHECKPOINT_BASE_REWIND blocks earlier */
+  /** range mode: the last Base block that run scanned completely; the next run starts CHECKPOINT_BASE_REWIND_MS of chain time earlier */
   base_scanned_to?: string | null;
   /** windows mode (2026-10-18): the highest data sequence whose expected Base window that run walked completely; the next
    *  run derives windows for the sequences after it */
@@ -36,9 +36,11 @@ export type CheckpointFile = {
   newest_signatures?: Array<string | null> | null;
 };
 
-/** The next run starts its Base scan this many blocks before the last scanned one: an hour at Base's 2 s blocks, so a
- *  reorganised or late-indexed attestation near the edge is not missed. */
-export const CHECKPOINT_BASE_REWIND = BigInt(1800);
+/** The next run starts its Base scan this much chain time before the last scanned block, so a reorganised or
+ *  late-indexed attestation near the edge is not missed. A time, not a block count (it was 1,800 blocks until 2026-11-11:
+ *  an hour at the two-second blocks Base had before its 5 Nov 2026 upgrade, six minutes after it); the scan turns it into
+ *  a block through the chain's own block times. */
+export const CHECKPOINT_BASE_REWIND_MS = BigInt(3_600_000);
 
 const HEX64 = /^(0x)?[0-9a-f]{64}$/i;
 const DIGITS = /^\d+$/;
@@ -73,11 +75,10 @@ export function checkpointCommitment(cp: CheckpointFile): Bytes {
   return fromHex(cp.commitment.replace(/^0x/i, "").toLowerCase());
 }
 
-/** Where the next Base scan starts, or null when the checkpoint carries no scanned block (then the genesis time decides). */
-export function checkpointBaseFrom(cp: CheckpointFile, rewind = CHECKPOINT_BASE_REWIND): bigint | null {
+/** The last Base block the checkpoint's range scan covered, or null when it carries none (then the genesis time decides). */
+export function checkpointBaseScanned(cp: CheckpointFile): bigint | null {
   if (cp.base_scanned_to === undefined || cp.base_scanned_to === null) return null;
-  const from = BigInt(cp.base_scanned_to) - rewind;
-  return from > BigInt(0) ? from : BigInt(0);
+  return BigInt(cp.base_scanned_to);
 }
 
 /** Windows mode: the highest data sequence whose expected Base window the checkpoint's run walked, or -1 when it carries none

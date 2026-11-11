@@ -55,20 +55,36 @@ incomplete Base scan and never ends the run; `--base-rpc` names another endpoint
 
 The Base copies are read in one of two ways. **Windows mode**, the default, places each expected copy from what it
 has just read on Solana: a data manifest's copy right after the end of its window (the engine seals at T+45 s and
-sends both copies in the same tick; on the live stream the daily Base copy landed 49 to 63 seconds after midnight),
+sends both copies in the same tick; on the live stream the daily Base copy landed 49 to 73 seconds after midnight),
 the genesis core's and a log entry's copy around the Solana anchor's block time. It asks for that one witness key in
 a short block range, two minutes before to fifteen minutes after (thirty minutes before for the genesis core and a
 log entry, whose Solana transaction may have been sent again later); a copy that is not there is looked for six more
-hours ahead (`--base-extension-hours` changes that; the Sunday run here passes 24) and then reported MISSING. That is one `eth_getLogs` call per copy on an endpoint that allows thousands
-of blocks per call and about fifty on a free keyed endpoint that allows ten (Alchemy's free tier does), so a full
-run over a month-old stream costs about two thousand calls either way and the public `mainnet.base.org` handles a
-daily run. A window the pass could not finish (budget, throttling, an endpoint error, or a window still open) holds
-the checkpoint back before that sequence, so the next run places it again. **Range mode**
-(`--base-scan range`, or `--base-from-block <n>`) is one pass over every block since genesis with only the schema
-filter: the full enumeration of the protocol's section 12.7, which also finds a copy sent hours late, by someone
-else, or with no Solana twin at all (windows mode has no time to place such a copy and cannot see it), for an
+hours ahead (`--base-extension-hours` changes that) and then reported MISSING. The range is read from the expected
+time on, then the lead before it, then the hours beyond, and no further than the copy: once the copy is read back,
+the rest of its range is left alone (a second anchor under the same key is range mode's to find, in the window as
+outside it). A window the pass could not finish (budget, throttling, an endpoint error, or a window still open) holds
+the checkpoint back before that sequence, so the next run places it again.
+
+A time becomes a Base block through block times read from the chain, never through an assumed block time. Base made
+a block every two seconds until its upgrade of 5 November 2026 and makes five a second since. The verifier before
+11 November 2026 counted back from the latest block at two seconds a block, so from 6 November it looked more than a
+million blocks away from every new copy, and the daily runs in this repository reported Base copies MISSING that were
+on the chain (the rows of 6 to 10 November in `results/README.md`, kept as they were written; the verdicts rest on
+Solana and were not affected). Every one of those copies is found by the verifier in this repository now.
+
+What a copy costs depends on the endpoint. One that allows thousands of blocks per `eth_getLogs` call spends one call
+on a copy. A free keyed endpoint that allows ten blocks a call (Alchemy's free tier does) spends about thirty on a copy
+that is where it is expected, and about 11,300 on one that is not there: its whole range and the six hours beyond it,
+113,000 blocks at five blocks a second. A run has a budget of 20,000 calls; the copies it does not reach are reported
+not walked, never missing, and the next run reads them.
+
+**Range mode** (`--base-scan range`, or `--base-from-block <n>`) is one pass over every block since genesis with only
+the schema filter: the full enumeration of the protocol's section 12.7, which also finds a copy sent hours late, by
+someone else, or with no Solana twin at all (windows mode has no time to place such a copy and cannot see it), for an
 endpoint that allows thousands of blocks per `eth_getLogs` (public ones cap it at 2,000 or 10,000 and throttle
-bursts). Both modes read every hit back from the contract and keep only admissible attestations.
+bursts). A day of Base is 432,000 blocks now, so the pass is long on any endpoint: it has a budget of 10,000 calls,
+says where it stopped, and a checkpoint or `--base-from-block` continues from there. Both modes read every hit back
+from the contract and keep only admissible attestations.
 
 Nothing the verifier prints or writes carries an endpoint's path or query string: a keyed URL is cut to its host in
 every message (the daily run below commits its output to this public repository).

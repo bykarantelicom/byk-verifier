@@ -14,9 +14,11 @@ try {
   } else base = r.base_scan_incomplete ? "incomplete" : "complete";
   // cache proof (rc6 13.7, 2026-10-18): a resumed run whose cached keys were shown unchanged carries the full verdict
   const proof = r.cache_proof ?? null;
-  const verdict = `${r.verdict}${proof ? (proof.proven ? ", cache proof held" : `, cache proof not held: ${String(proof.reason ?? "").slice(0, 70)}`) : ""}`;
+  // free text from an endpoint goes into a table cell: a bar or a line break in it would split the row (2026-11-11)
+  const cell = (text) => String(text).replace(/[|\r\n]+/g, " ");
+  const verdict = `${r.verdict}${proof ? (proof.proven ? ", cache proof held" : `, cache proof not held: ${cell(proof.reason ?? "").slice(0, 70)}`) : ""}`;
   line = `| ${r.as_of.slice(0, 16).replace("T", " ")} | ${mode} | ${r.passed ? "PASS" : "FAIL"} (${verdict}) | ${r.canonical} of ${r.checked} CANONICAL | head ${head} | Base ${base} | exit ${rc} |`;
 } catch (err) {
-  line = `| ${new Date().toISOString().slice(0, 16).replace("T", " ")} | ${mode} | NO RESULT (${err instanceof Error ? err.message.slice(0, 60) : String(err)}) | | | | exit ${rc} |`;
+  line = `| ${new Date().toISOString().slice(0, 16).replace("T", " ")} | ${mode} | NO RESULT (${String(err instanceof Error ? err.message : err).replace(/[|\r\n]+/g, " ").slice(0, 60)}) | | | | exit ${rc} |`;
 }
 console.log(line);

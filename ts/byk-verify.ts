@@ -21,7 +21,10 @@
  * Base, two ways (2026-10-18): windows mode (the default) looks for each expected Base copy in a short block range
  * after its Solana anchor, the per-key query of 12.7 bounded in time, which a free endpoint capping eth_getLogs at
  * ten blocks completes in minutes; range mode (--base-scan range, or --base-from-block) is one pass over every block
- * since genesis, the full enumeration, for an endpoint that allows thousands of blocks per call.
+ * since genesis, the full enumeration, for an endpoint that allows thousands of blocks per call. Since 2026-11-11 a
+ * time becomes a Base block through block times read from the chain (Base went from a block every two seconds to five
+ * a second on 5 Nov 2026 and the fixed pace this program assumed reported every copy after it MISSING), and a window is
+ * read from the expected time on and no further than its copy (lib/byk-chain/base.ts, block-clock.ts).
  * Reader checkpoint (2026-10-18): --checkpoint-out writes the last CANONICAL sequence, its commitment and the
  * authorization log head after a run that passed; --checkpoint <that file> makes the next run read from that
  * sequence on and seed the resolution with it (the row is flagged READER_CHECKPOINT; nothing before it is re-read
@@ -45,9 +48,9 @@ import {
   type AnchoredPayload, authorized, base58Decode, BASE_EAS_ADDRESS_HEX, BASE_MAINNET_CHAIN_ID, BASE_SEPOLIA_CHAIN_ID, buildAuthorizationLog, collectCandidates, EPOCH_MS, equal, fromHex, keccak256,
   type Manifest, maxSequence, parseGenesisCore, parseManifest, type ReaderCheckpoint, recoverAddress, resolveCanonical, SOLANA_DEVNET_GENESIS_B58, SOLANA_MAINNET_GENESIS_B58, toHex, WITNESS_KIND, witnessKey,
 } from "./index";
-import { assertBaseRpc, type BaseAnchor, BASE_MAINNET_RPC, BASE_SEPOLIA_RPC, type BaseNetwork, blockAtOrBefore, FIXED_WINDOW_BEFORE_MS, messageOf, type RangeScan, scanStreamAttestations, scanWitnessWindows, WINDOW_AFTER_MS, WINDOW_EXTENSION_MS, type WindowSpec, type WindowsScan } from "./byk-chain/base";
+import { assertBaseRpc, type BaseAnchor, BASE_MAINNET_RPC, BASE_SEPOLIA_RPC, type BaseNetwork, FIXED_WINDOW_BEFORE_MS, messageOf, type RangeScan, type RangeStart, scanStreamAttestations, scanWitnessWindows, WINDOW_AFTER_MS, WINDOW_EXTENSION_MS, type WindowSpec, type WindowsScan } from "./byk-chain/base";
 import { assembleNewestList, type CacheProof, proveCachedSequences, unprovable } from "./byk-chain/cache-proof";
-import { alHeadChanged, type CheckpointFile, checkpointBaseFrom, checkpointCommitment, checkpointWindowsThrough, parseCheckpoint } from "./byk-chain/checkpoint";
+import { alHeadChanged, CHECKPOINT_BASE_REWIND_MS, type CheckpointFile, checkpointBaseScanned, checkpointCommitment, checkpointWindowsThrough, parseCheckpoint } from "./byk-chain/checkpoint";
 import { endpointHost, oneLine, redactUrls } from "./byk-chain/redact";
 import { assertSolanaNetwork, readAnchors, SOLANA_DEVNET_RPC, type SolanaAnchor, witnessAddress } from "./byk-chain/solana";
 import { checkpointSequence, dataCopyWindows, fixedCopyWindow, windowsMarks } from "./byk-chain/windows";
@@ -65,14 +68,16 @@ const USAGE = `byk-verify: independent verifier of a BYK Data Layer stream (read
     --base-rpc <url>          Base endpoint (default https://mainnet.base.org, or BASE_RPC_URL)
     --base-scan windows|range windows (default): each expected Base copy is looked for in a short block range around the
                               time the engine sent it (the end of the manifest's window, the Solana anchor's time for the
-                              genesis core and a log entry), about fifty calls a copy on a free endpoint that caps
-                              eth_getLogs at ten blocks (a copy with no Solana twin is invisible to this mode, and the
-                              genesis core must be on the Solana endpoint: an archive one); range: one pass over every
-                              block since genesis (or the checkpoint, or --base-from-block), the full enumeration, for an
-                              endpoint that allows thousands of blocks per call
+                              genesis core and a log entry), read from that time on and no further than the copy: about
+                              thirty calls a copy on a free endpoint that caps eth_getLogs at ten blocks, at Base's five
+                              blocks a second (a copy with no Solana twin is invisible to this mode, and the genesis core
+                              must be on the Solana endpoint: an archive one); range: one pass over every block since
+                              genesis (or the checkpoint, or --base-from-block), the full enumeration, for an endpoint
+                              that allows thousands of blocks per call
     --base-from-block <n>     first Base block of a range scan (default: the genesis time, or the checkpoint's last scanned block)
-    --base-extension-hours <h> windows mode: how far beyond its window a copy that is not there is looked for (default 6;
-                              a periodic full run may pass 24 to settle a copy the daily runs reported MISSING)
+    --base-extension-hours <h> windows mode: how far beyond its window a copy that is not there is looked for (default 6,
+                              which is 108,000 blocks: 54 calls where a call may span 2,000 blocks, 10,800 where it
+                              may span ten; more hours settle a copy an earlier run reported MISSING)
     --no-base                 skip the Base witness (the verdict rests on Solana under the beta profile)
     --checkpoint <file>       continue from a checkpoint written by an earlier run (--checkpoint-out)
     --checkpoint-out <file>   after a run that passed, write the last CANONICAL sequence for the next run
@@ -174,7 +179,7 @@ async function main(): Promise<void> {
    * Base call sits inside a try: an endpoint that throttles for good, is down, is pruned or is another chain
    * is reported the same way instead of ending the run (18 Oct 2026: mainnet.base.org answered "request limit
    * reached" and the default command exited 1). A checkpoint carries the last Base block its range scan covered; the
-   * next range scan starts an hour of blocks earlier so a reorganised or late-indexed attestation is not missed;
+   * next range scan starts an hour of chain time earlier so a reorganised or late-indexed attestation is not missed;
    * without one the pass starts at the genesis time. */
   const baseHits = new Map<string, BaseAnchor[]>();
   let baseScan: RangeScan | null = null;
@@ -185,9 +190,10 @@ async function main(): Promise<void> {
   if (useBase && baseMode === "range") {
     try {
       await assertBaseRpc(baseNet);
-      const cpBaseFrom = cp ? checkpointBaseFrom(cp) : null;
-      rangeFromGenesis = baseFromFlag === undefined && cpBaseFrom === null && solCore !== undefined; // without the core on Solana the pass starts two days back, not at genesis
-      const baseFrom = baseFromFlag !== undefined ? BigInt(baseFromFlag) : cpBaseFrom !== null ? cpBaseFrom : await blockAtOrBefore(baseNet, sinceMs);
+      const cpBaseScanned = cp ? checkpointBaseScanned(cp) : null;
+      rangeFromGenesis = baseFromFlag === undefined && cpBaseScanned === null && solCore !== undefined; // without the core on Solana the pass starts two days back, not at genesis
+      // a block as given, an hour of chain time before the block the checkpoint's scan covered, or half an hour before the genesis time
+      const baseFrom: RangeStart = baseFromFlag !== undefined ? BigInt(baseFromFlag) : cpBaseScanned !== null ? { rewindFrom: cpBaseScanned, rewindMs: CHECKPOINT_BASE_REWIND_MS } : { timeMs: sinceMs };
       baseScan = await scanStreamAttestations(baseNet, streamId, baseFrom);
       for (const [k, list] of baseScan.byWitnessKey) baseHits.set(k, list);
     } catch (err) {
@@ -323,8 +329,8 @@ async function main(): Promise<void> {
     const w = baseWindows;
     const of = (kind: WindowSpec["kind"]) => w.copies.filter((x) => x.kind === kind).length;
     const stop = !w.complete ? (w.stopReason === "rate_limited" ? " · STOPPED EARLY: the endpoint kept throttling; the windows after that are not walked" : w.stopReason === "error" ? ` · STOPPED EARLY: the endpoint failed (${oneLine(w.error ?? "", 160)}); the windows after that are not walked` : " · STOPPED EARLY: call budget; the windows after that are not walked") : "";
-    say(`base witness   windows mode: ${w.copies.length} expected cop${w.copies.length === 1 ? "y" : "ies"} (genesis ${of("genesis")}, log ${of("al")}, data ${of("data")}${fixedSkipped ? "; genesis and log windows walked by the run that wrote the checkpoint" : ""}) in ${w.windows.length} window${w.windows.length === 1 ? "" : "s"} · found ${w.found} · missing ${w.missing} · still open ${w.open} · not walked ${w.notWalked} · ${w.calls} calls of up to ${w.chunkUsed + BigInt(1)} blocks${unplacedFixed ? ` · ${unplacedFixed} not placed (no block time on Solana)` : ""}${w.driftBlocks !== BigInt(0) ? ` · clock drift ${w.driftBlocks} blocks` : ""}${w.driftRejected !== null ? ` · WARNING: the probe block disagreed with the arithmetic by ${w.driftRejected} blocks, not believed; the windows stand on the arithmetic` : ""}${stop}`);
-    for (const c of w.copies) if (c.status === "missing") say(`base witness   MISSING: ${c.kind === "data" ? `manifest ${c.n}` : c.kind === "al" ? `log entry ${c.n}` : "genesis core"} has no Base copy in ${w.windows.filter((x) => x.kind === c.kind && x.n === c.n).map((x) => `blocks ${x.from} to ${x.to}${x.extended ? " (extended)" : ""}`).join(" nor ")}; a run without --checkpoint and with --base-extension-hours 24, or range mode (--base-scan range), looks further`);
+    say(`base witness   windows mode: ${w.copies.length} expected cop${w.copies.length === 1 ? "y" : "ies"} (genesis ${of("genesis")}, log ${of("al")}, data ${of("data")}${fixedSkipped ? "; genesis and log windows walked by the run that wrote the checkpoint" : ""}) in ${w.windows.length} window${w.windows.length === 1 ? "" : "s"} · found ${w.found} · missing ${w.missing} · still open ${w.open} · not walked ${w.notWalked} · ${w.calls} calls of up to ${w.chunkUsed + BigInt(1)} blocks${unplacedFixed ? ` · ${unplacedFixed} not placed (no block time on Solana)` : ""} · ${w.blockReads} block${w.blockReads === 1 ? "" : "s"} read to place the windows${stop}`);
+    for (const c of w.copies) if (c.status === "missing") say(`base witness   MISSING: ${c.kind === "data" ? `manifest ${c.n}` : c.kind === "al" ? `log entry ${c.n}` : "genesis core"} has no Base copy in ${w.windows.filter((x) => x.kind === c.kind && x.n === c.n).map((x) => `blocks ${x.from} to ${x.to}${x.extended ? " (extended)" : ""}`).join(" nor ")}; a run without --checkpoint and with more --base-extension-hours (every hour is 18,000 blocks at Base's five a second: nine calls where a call may span 2,000 blocks, 1,800 where it may span ten), or range mode (--base-scan range), looks further`);
     if (w.latestBlock < BigInt(0)) warnBaseWindows();
   }
   for (const [s] of witness) {
@@ -439,7 +445,7 @@ async function main(): Promise<void> {
   const baseSummary = baseScan
     ? { mode: "range" as const, from: baseScan.scannedFrom.toString(), to: baseScan.scannedTo.toString(), calls: baseScan.calls, complete: baseScan.complete, stop: baseScan.stopReason }
     : baseWindows
-      ? { mode: "windows" as const, copies: baseWindows.copies.length, windows: baseWindows.windows.length, found: baseWindows.found, missing: baseWindows.missing, open: baseWindows.open, not_walked: baseWindows.notWalked, unplaced: unplacedFixed, fixed_windows_from_checkpoint: fixedSkipped, calls: baseWindows.calls, chunk: baseWindows.chunkUsed.toString(), latest_block: baseWindows.latestBlock.toString(), drift_blocks: baseWindows.driftBlocks.toString(), drift_rejected: baseWindows.driftRejected?.toString() ?? null, complete: baseWindows.complete, stop: baseWindows.stopReason, error: baseWindows.error !== null ? oneLine(baseWindows.error, 400) : null }
+      ? { mode: "windows" as const, copies: baseWindows.copies.length, windows: baseWindows.windows.length, found: baseWindows.found, missing: baseWindows.missing, open: baseWindows.open, not_walked: baseWindows.notWalked, unplaced: unplacedFixed, fixed_windows_from_checkpoint: fixedSkipped, calls: baseWindows.calls, chunk: baseWindows.chunkUsed.toString(), latest_block: baseWindows.latestBlock.toString(), block_reads: baseWindows.blockReads, complete: baseWindows.complete, stop: baseWindows.stopReason, error: baseWindows.error !== null ? oneLine(baseWindows.error, 400) : null }
       : null;
   /* FULL: every sequence read in this run, or the cached ones proven unchanged (rc6 13.7) and the rest enumerated to the end;
    * RESUMED otherwise. */
