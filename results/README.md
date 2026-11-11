@@ -38,3 +38,4 @@ it), the cached sequences are provably unchanged and the line says "full, cache 
 | 2026-11-08 08:56 | full | PASS (full) | 14732 of 14732 CANONICAL | head 14731 | Base incomplete, copies 0 of 55 (4 missing) (51 not walked) | exit 0 |
 | 2026-11-09 09:04 | incremental | PASS (full, cache proof held) | 14782 of 14782 CANONICAL | head 15019 | Base incomplete, copies 0 of 52 (17 missing) (35 not walked) | exit 0 |
 | 2026-11-10 08:48 | incremental | PASS (full, cache proof held) | 10171 of 10171 CANONICAL | head 15304 | Base incomplete, copies 0 of 36 (17 missing) (19 not walked) | exit 0 |
+| 2026-11-11 06:40 | full | PASS (full) | 15579 of 15579 CANONICAL | head 15578 | Base complete, copies 58 of 58 | exit 0 |
