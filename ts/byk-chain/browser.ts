@@ -24,11 +24,11 @@
  *
  * Pure and fetch-injected, unit-tested against honest, tampered, spammed and unreachable answers. A cryptographic
  * mismatch is "fail"; an unreachable, truncated or pruned source is "unavailable", never a silent pass. */
-import { type Bytes, base58Decode, base58Encode, equal, fromHex, readBig, toHex } from "../byk/bytes";
-import { type AlResult, authorized, buildAuthorizationLog } from "../byk/authlog";
-import { keccak256, recoverAddress } from "../byk/crypto";
-import { type Genesis, maxSequence, parseGenesisCore, parseManifest, SOLANA_DEVNET_GENESIS_B58, SOLANA_MAINNET_GENESIS_B58, validateManifestInStream, WITNESS_KIND, type WitnessKind, witnessKey } from "../byk/stream";
-import { EAS_AL_SCHEMA, EAS_DATA_SCHEMA, EAS_GENESIS_SCHEMA, easSchemaUid, parseEasData, parseMemo, SPL_MEMO_PROGRAM_ID, type WitnessPayload, witnessKeyOf } from "../byk/witness";
+import { type Bytes, base58Decode, base58Encode, equal, fromHex, readBig, toHex } from "../bytes";
+import { type AlResult, authorized, buildAuthorizationLog } from "../authlog";
+import { keccak256, recoverAddress } from "../crypto";
+import { type Genesis, maxSequence, parseGenesisCore, parseManifest, SOLANA_DEVNET_GENESIS_B58, SOLANA_MAINNET_GENESIS_B58, validateManifestInStream, WITNESS_KIND, type WitnessKind, witnessKey } from "../stream";
+import { EAS_AL_SCHEMA, EAS_DATA_SCHEMA, EAS_GENESIS_SCHEMA, easSchemaUid, parseEasData, parseMemo, SOLANA_MAX_TRANSACTION_VERSION, SPL_MEMO_PROGRAM_ID, type WitnessPayload, witnessKeyOf } from "../witness";
 
 export type BrowserNet = { name: "mainnet" | "devnet"; baseRpc: string[]; easGraphql: string; solanaRpc: string; baseChainId: bigint; easAddress: string; solanaGenesis: string; pinnedStreamId: string | null };
 
@@ -254,7 +254,9 @@ export function signerAuthorizedOnChain(chain: TrustChain, signer: Bytes, sequen
 
 type SolanaTx = { slot?: number; blockTime?: number | null; meta?: { err: unknown } | null; transaction?: { message?: { accountKeys?: string[]; instructions?: Array<{ programIdIndex: number; data: string }> } } } | null;
 
-/** Section 12.6 on Solana, as the verifier's admissiblePayload, over the JSON encoding a browser receives. */
+/** Section 12.6 on Solana, as the verifier's admissiblePayload, over the JSON encoding a browser receives. A version 1
+ *  answer lists its account keys and instructions in the same two fields as a legacy one (measured on three nodes,
+ *  16 Nov 2026), so the same rule judges it. */
 export function admissibleSolanaJson(tx: SolanaTx, key: Bytes, streamId: Bytes): WitnessPayload | null {
   if (!tx || !tx.meta || tx.meta.err !== null) return null;
   const keys = tx.transaction?.message?.accountKeys ?? [];
@@ -381,7 +383,8 @@ export async function checkDataAnchor(post: PostJson, net: BrowserNet, chain: Tr
       for (const s of page) {
         examined++;
         if (s.err !== null) continue;
-        const txParams = [s.signature, { encoding: "json", commitment: "finalized", maxSupportedTransactionVersion: 0 }];
+        /* the newest version this check reads: the key lists anybody's transactions, and a node refuses one newer than the request names */
+        const txParams = [s.signature, { encoding: "json", commitment: "finalized", maxSupportedTransactionVersion: SOLANA_MAX_TRANSACTION_VERSION }];
         // a load-balanced node can answer from a backend that dropped the slot: ask once more before giving up
         const tx = (await solanaCall<SolanaTx>(post, net, "getTransaction", txParams)) ?? (await solanaCall<SolanaTx>(post, net, "getTransaction", txParams));
         if (!tx) return { state: "unavailable", cause: "unreachable", reason: "a listed Solana transaction could not be read, so the witness key cannot be enumerated" };
@@ -399,7 +402,7 @@ export async function checkDataAnchor(post: PostJson, net: BrowserNet, chain: Tr
     }
     // a named transaction the listing did not show: read it directly; it must carry this manifest if it exists
     if (solanaTxId && !namedSeen) {
-      const tx = await solanaCall<SolanaTx>(post, net, "getTransaction", [solanaTxId, { encoding: "json", commitment: "finalized", maxSupportedTransactionVersion: 0 }]);
+      const tx = await solanaCall<SolanaTx>(post, net, "getTransaction", [solanaTxId, { encoding: "json", commitment: "finalized", maxSupportedTransactionVersion: SOLANA_MAX_TRANSACTION_VERSION }]);
       if (tx) {
         const verdict = judgePayload(admissibleSolanaJson(tx, key, streamId));
         if (verdict !== "copy") return { state: "fail", code: "named", reason: "the named Solana transaction does not carry this manifest under its witness key" };

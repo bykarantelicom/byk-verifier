@@ -3,10 +3,16 @@
  * An anchor is one legacy transaction: a compute budget, a 0-lamport System transfer from the fee payer to the
  * WITNESS KEY (which makes that 32-byte key a static account key, so anyone finds the anchor again with
  * getSignaturesForAddress) and exactly one SPL Memo instruction carrying the payload as text. The fee payer is
- * a hot wallet with gas money and nothing else: admissibility never looks at who paid (Section 12.1). */
+ * a hot wallet with gas money and nothing else: admissibility never looks at who paid (Section 12.1).
+ *
+ * Reading is another matter: the witness key lists whatever anyone sent to it, in whatever transaction version, and
+ * every listed transaction that succeeded has to be fetched before the key counts as enumerated. The fetch names the
+ * newest version this reader reads (SOLANA_MAX_TRANSACTION_VERSION); with an older one the node refuses the
+ * transaction and the read ends there (16 Nov 2026: the fetch named version 0, and one version 1 transfer of nothing
+ * to a witness key would have ended every run of the verifier). */
 import { ComputeBudgetProgram, Connection, Keypair, PublicKey, SystemProgram, Transaction, TransactionInstruction } from "@solana/web3.js";
 
-import { base58Decode, base58Encode, type Bytes, equal, memoOf, parseMemo, SOLANA_TX_LIMIT, SPL_MEMO_PROGRAM_ID, type WitnessPayload, witnessKeyOf } from "../index";
+import { base58Decode, base58Encode, type Bytes, equal, memoOf, parseMemo, SOLANA_MAX_TRANSACTION_VERSION, SOLANA_TX_LIMIT, SPL_MEMO_PROGRAM_ID, type WitnessPayload, witnessKeyOf } from "../index";
 
 const MEMO_PROGRAM = new PublicKey(SPL_MEMO_PROGRAM_ID);
 /* Measured on devnet, 17 Sep 2026: the Memo program burns about 350 compute units per memo byte. A data anchor
@@ -92,7 +98,7 @@ export async function readAnchors(conn: Connection, witnessKey: Bytes, streamId:
       if (opts.asOfSlot !== undefined && s.slot > opts.asOfSlot) continue; // beyond the as-of height: not judged, so not recorded either
       if (newestSignature === null) newestSignature = s.signature; // newest first: the first one inside the as-of height
       if (s.err !== null) continue; // cheap-first: failed transactions are skipped without a fetch
-      const tx = await conn.getTransaction(s.signature, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+      const tx = await conn.getTransaction(s.signature, { commitment: "finalized", maxSupportedTransactionVersion: SOLANA_MAX_TRANSACTION_VERSION });
       if (!tx) {
         complete = false; // listed but not retrievable: history is missing on this endpoint
         continue;

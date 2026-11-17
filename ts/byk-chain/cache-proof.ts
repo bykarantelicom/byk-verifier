@@ -10,12 +10,13 @@
  * manifest), so the run stays RESUMED and a full run decides. New inadmissible transactions (failed, or spam sent to the
  * key) do not break it: the stored signature moves to the newest one so the next run does not list them again. A key
  * that lists nothing, a transaction that cannot be fetched or more new transactions than the bound cannot be proven
- * either way. The genesis and log keys are enumerated in full by every run and need no proof. The proof covers the
+ * either way. The stored signature is the newest transaction of its key whoever sent it, and the new ones are anybody's:
+ * both fetches name the newest transaction version the reader reads, as readAnchors does (solana.ts). The genesis and log keys are enumerated in full by every run and need no proof. The proof covers the
  * Solana witness, on which the verdict rests under the beta profile; the Base copies of cached sequences are not read
  * again (the Sunday full run looks for every expected copy once more). */
 import { PublicKey } from "@solana/web3.js";
 
-import { type Bytes, WITNESS_KIND, witnessKey, type WitnessPayload } from "../index";
+import { type Bytes, SOLANA_MAX_TRANSACTION_VERSION, WITNESS_KIND, witnessKey, type WitnessPayload } from "../index";
 import { admissiblePayload } from "./solana";
 
 export type SignatureInfo = { signature: string; slot: number; err: unknown };
@@ -94,7 +95,7 @@ export async function proveCachedSequences(conn: SignatureSource, streamId: Byte
       /* A listing with `until` runs to the beginning of the key's history when the endpoint no longer holds the stored
        * transaction (a partial archive whose first block is still before genesis), and would then present the sequence's
        * own anchor as new: the stored transaction must be retrievable here before anything newer is judged. */
-      const storedTx = await conn.getTransaction(sig, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+      const storedTx = await conn.getTransaction(sig, { commitment: "finalized", maxSupportedTransactionVersion: SOLANA_MAX_TRANSACTION_VERSION });
       calls++;
       if (!storedTx) return fail(s, `the transaction the checkpoint recorded for sequence ${s} (${sig}) is not retrievable on this endpoint: the history is missing here, use an archive endpoint`);
       let before: string | undefined;
@@ -114,7 +115,7 @@ export async function proveCachedSequences(conn: SignatureSource, streamId: Byte
             inadmissible++;
             continue;
           }
-          const tx = await conn.getTransaction(x.signature, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+          const tx = await conn.getTransaction(x.signature, { commitment: "finalized", maxSupportedTransactionVersion: SOLANA_MAX_TRANSACTION_VERSION });
           calls++;
           if (!tx) return fail(s, `transaction ${x.signature} under sequence ${s} is listed but not retrievable on this endpoint`);
           if (judge(tx, key)) return fail(s, `sequence ${s} has a new admissible anchor since the run that wrote the checkpoint (${x.signature}): the cached verdict may differ from a full evaluation, run without --checkpoint`);

@@ -43988,6 +43988,7 @@ function resolveCanonical(state, cands, genesis, asOfMs, target, seed) {
 
 // src/lib/byk/witness.ts
 var SPL_MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
+var SOLANA_MAX_TRANSACTION_VERSION = 1;
 var EAS_DATA_SCHEMA = "uint64 sequence,bytes32 commitment,bytes manifest,bytes signature";
 var EAS_AL_SCHEMA = "uint64 logSeq,bytes32 entryHash,bytes entry,bytes governanceSignatures";
 var EAS_GENESIS_SCHEMA = "bytes32 streamId,bytes genesisCore";
@@ -55960,7 +55961,7 @@ async function readAnchors(conn, witnessKey2, streamId, opts = {}) {
       if (opts.asOfSlot !== void 0 && s.slot > opts.asOfSlot) continue;
       if (newestSignature === null) newestSignature = s.signature;
       if (s.err !== null) continue;
-      const tx = await conn.getTransaction(s.signature, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+      const tx = await conn.getTransaction(s.signature, { commitment: "finalized", maxSupportedTransactionVersion: SOLANA_MAX_TRANSACTION_VERSION });
       if (!tx) {
         complete = false;
         continue;
@@ -56022,7 +56023,7 @@ async function proveCachedSequences(conn, streamId, stored, through, opts = {}) 
     const top = head[0].signature;
     if (top !== sig) {
       changed++;
-      const storedTx = await conn.getTransaction(sig, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+      const storedTx = await conn.getTransaction(sig, { commitment: "finalized", maxSupportedTransactionVersion: SOLANA_MAX_TRANSACTION_VERSION });
       calls++;
       if (!storedTx) return fail(s, `the transaction the checkpoint recorded for sequence ${s} (${sig}) is not retrievable on this endpoint: the history is missing here, use an archive endpoint`);
       let before;
@@ -56041,7 +56042,7 @@ async function proveCachedSequences(conn, streamId, stored, through, opts = {}) 
             inadmissible++;
             continue;
           }
-          const tx = await conn.getTransaction(x.signature, { commitment: "finalized", maxSupportedTransactionVersion: 0 });
+          const tx = await conn.getTransaction(x.signature, { commitment: "finalized", maxSupportedTransactionVersion: SOLANA_MAX_TRANSACTION_VERSION });
           calls++;
           if (!tx) return fail(s, `transaction ${x.signature} under sequence ${s} is listed but not retrievable on this endpoint`);
           if (judge(tx, key)) return fail(s, `sequence ${s} has a new admissible anchor since the run that wrote the checkpoint (${x.signature}): the cached verdict may differ from a full evaluation, run without --checkpoint`);

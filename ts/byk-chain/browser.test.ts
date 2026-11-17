@@ -8,11 +8,11 @@ import { test } from "node:test";
 
 import { encodeAbiParameters, type Hex, parseAbiParameters } from "viem";
 
-import { alAuthorize, alCheckpoint, makeBundle } from "../byk/authlog";
-import { base58Decode, base58Encode, fromHex, toHex, U64_MAX } from "../byk/bytes";
-import { addressOfPrivateKey, keccak256, signDigest } from "../byk/crypto";
-import { encodeGenesisCore, encodeManifest, SOLANA_MAINNET_GENESIS_B58, WITNESS_KIND, witnessKey } from "../byk/stream";
-import { EAS_AL_SCHEMA, EAS_DATA_SCHEMA, EAS_GENESIS_SCHEMA, easDataOf, easSchemaUid, memoData, SPL_MEMO_PROGRAM_ID, type WitnessPayload } from "../byk/witness";
+import { alAuthorize, alCheckpoint, makeBundle } from "../authlog";
+import { base58Decode, base58Encode, fromHex, toHex, U64_MAX } from "../bytes";
+import { addressOfPrivateKey, keccak256, signDigest } from "../crypto";
+import { encodeGenesisCore, encodeManifest, SOLANA_MAINNET_GENESIS_B58, WITNESS_KIND, witnessKey } from "../stream";
+import { EAS_AL_SCHEMA, EAS_DATA_SCHEMA, EAS_GENESIS_SCHEMA, easDataOf, easSchemaUid, memoData, SPL_MEMO_PROGRAM_ID, type WitnessPayload } from "../witness";
 import { admissibleAttestation, BASE_READ_BUDGET, BROWSER_NETS, checkDataAnchor, decodeAttestation, INDEX_MAX_PAGES, INDEX_PAGE, MAINNET_STREAM_ID, type PostJson, readTrustChain, signerAuthorizedOnChain, type TrustChain } from "./browser";
 
 const NET = BROWSER_NETS.mainnet; // endpoints only; the fake network answers on these urls
@@ -27,6 +27,9 @@ const T0 = BigInt(1_789_700_000_000 - (1_789_700_000_000 % 300_000));
 const T0S = Number(T0 / BigInt(1000));
 const endOf = (seq: number) => T0S + (seq + 1) * 300; // window end of a sequence, seconds
 const NOW = Number(T0) + 3 * 86_400_000; // three days after genesis: seq 5 is "old"
+
+/* the compute budget of a version 1 message, in the shape a node lists it */
+const SOLANA_V1_CONFIG = { priorityFee: 0, computeUnitLimit: 400_000, loadedAccountsDataSizeLimit: 67_108_864, heapSize: null };
 
 type Att = { uid: string; schema: string; data: Uint8Array; recipient: Uint8Array; time: number; revocable?: boolean; expiration?: bigint; ref?: Uint8Array };
 
@@ -91,11 +94,21 @@ function world(opts: { chainId?: bigint; alSigner?: Uint8Array; revokeAt?: bigin
   const sign = (m: Uint8Array, k = SIGNER) => signDigest(k, keccak256(m));
   const solana = new Map<string, unknown>();
   const sigsByAddress = new Map<string, string[]>();
-  const solanaAnchor = (m: Uint8Array, s: Uint8Array, id: string, blockTimeSec: number, err: unknown = null) => {
+  /* `as.version`: the anchor sent as a transaction of that version (the answer then carries `version` and the message a
+   * transactionConfig, as a node lists a version 1 transaction in the "json" encoding); `as.unlisted`: the node serves
+   * the transaction by its id and does not list it under the key */
+  const solanaAnchor = (m: Uint8Array, s: Uint8Array, id: string, blockTimeSec: number, err: unknown = null, as: { version?: number; unlisted?: boolean } = {}) => {
     const seq = BigInt(new DataView(m.buffer, m.byteOffset + 8, 8).getBigUint64(0));
     const address = base58Encode(witnessKey(streamId, WITNESS_KIND.DATA, seq));
-    solana.set(id, { slot: 1, blockTime: blockTimeSec, meta: { err }, transaction: { message: { accountKeys: ["FeePayer1111111111111111111111111111111111", address, SPL_MEMO_PROGRAM_ID], instructions: [{ programIdIndex: 2, data: base58Encode(new TextEncoder().encode(memoData(m, s))) }] } } });
-    sigsByAddress.set(address, [id, ...(sigsByAddress.get(address) ?? [])]); // newest first, as the RPC lists them
+    const message = { accountKeys: ["FeePayer1111111111111111111111111111111111", address, SPL_MEMO_PROGRAM_ID], instructions: [{ programIdIndex: 2, data: base58Encode(new TextEncoder().encode(memoData(m, s))) }] };
+    solana.set(id, { slot: 1, blockTime: blockTimeSec, meta: { err }, ...(as.version === undefined ? { transaction: { message } } : { version: as.version, transaction: { message: { ...message, transactionConfig: SOLANA_V1_CONFIG } } }) });
+    if (!as.unlisted) sigsByAddress.set(address, [id, ...(sigsByAddress.get(address) ?? [])]); // newest first, as the RPC lists them
+  };
+  /** A stranger's transaction of this version that sends nothing to the key of a sequence and carries no memo. */
+  const solanaDust = (seq: bigint, id: string, version: number) => {
+    const address = base58Encode(witnessKey(streamId, WITNESS_KIND.DATA, seq));
+    solana.set(id, { slot: 1, blockTime: endOf(Number(seq)) + 500, version, meta: { err: null }, transaction: { message: { accountKeys: ["FeePayer1111111111111111111111111111111111", address, "11111111111111111111111111111111"], instructions: [{ programIdIndex: 2, accounts: [0, 1], data: base58Encode(new Uint8Array([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])), stackHeight: 1 }], transactionConfig: SOLANA_V1_CONFIG } } });
+    sigsByAddress.set(address, [id, ...(sigsByAddress.get(address) ?? [])]);
   };
   const solanaJunk = (seq: bigint, count: number) => {
     const address = base58Encode(witnessKey(streamId, WITNESS_KIND.DATA, seq));
@@ -132,7 +145,12 @@ function world(opts: { chainId?: bigint; alSigner?: Uint8Array; revokeAt?: bigin
       if (b.method === "getTransaction") {
         calls.solanaTx++;
         const id = b.params![0] as string;
-        return { result: hidden.has(id) ? null : solana.get(id) ?? null };
+        const found = hidden.has(id) ? null : (solana.get(id) as { version?: number } | undefined) ?? null;
+        /* a node does not serve a transaction newer than the version the request names: JSON-RPC -32015 in a 200 body
+         * (three mainnet nodes, 16 Nov 2026) */
+        const named = (b.params![1] as { maxSupportedTransactionVersion?: number }).maxSupportedTransactionVersion ?? -1;
+        if (found && typeof found.version === "number" && found.version > named) return { jsonrpc: "2.0", error: { code: -32015, message: `Transaction version (${found.version}) is not supported by the requesting client. Please try the request again with the following configuration parameter: "maxSupportedTransactionVersion": ${found.version}` } };
+        return { result: found };
       }
       if (b.method === "getFirstAvailableBlock") return { result: firstBlock };
       if (b.method === "getBlockTime") {
@@ -153,7 +171,7 @@ function world(opts: { chainId?: bigint; alSigner?: Uint8Array; revokeAt?: bigin
     throw new Error(`unexpected ${url}`);
   };
   return {
-    streamId, atts, add, junk, junkLog, manifestOf, sign, solanaAnchor, solanaJunk, post, gKey, calls, hidden,
+    streamId, atts, add, junk, junkLog, manifestOf, sign, solanaAnchor, solanaDust, solanaJunk, post, gKey, calls, hidden,
     down: (i: boolean, bd: boolean) => { indexDown = i; baseDown = bd; },
     sigError: (v: boolean) => { signaturesError = v; },
     retention: (fromSec: number) => { firstBlock = 1_000; firstBlockTimeSec = fromSec; },
@@ -398,6 +416,45 @@ test("the Solana witness key is enumerated even when our API names no transactio
   w2.hidden.add("sigHidden");
   const hiddenRival = await checkDataAnchor(w2.post, netFor(w2), chain2, w2.streamId, m2, s2, "sigMine", NOW);
   assert.equal(hiddenRival.state === "unavailable" && hiddenRival.cause, "unreachable");
+});
+
+test("a version 1 transaction under the witness key is read like any other: a stranger's is ignored, an anchor's counts, an authorized rival is equivocation", async () => {
+  // a stranger sends nothing to the key in a version 1 transaction: the anchor under it still passes
+  const w = world();
+  const chain = await ready(w);
+  const m = w.manifestOf(BigInt(5));
+  const s = w.sign(m);
+  w.solanaAnchor(m, s, "sigA", endOf(5) + 50);
+  w.solanaDust(BigInt(5), "dustV1", 1);
+  assert.deepEqual(await checkDataAnchor(w.post, netFor(w), chain, w.streamId, m, s, "sigA", NOW), { state: "pass", via: "solana", timeMs: (endOf(5) + 50) * 1000, secondsAfterWindow: 50 });
+  // the anchor itself in a version 1 transaction, named by the API and not listed by the node: it is read by its id
+  const w2 = world();
+  const chain2 = await ready(w2);
+  const m2 = w2.manifestOf(BigInt(6));
+  const s2 = w2.sign(m2);
+  w2.solanaAnchor(m2, s2, "sigV1", endOf(6) + 30, null, { version: 1, unlisted: true });
+  assert.deepEqual(await checkDataAnchor(w2.post, netFor(w2), chain2, w2.streamId, m2, s2, "sigV1", NOW), { state: "pass", via: "solana", timeMs: (endOf(6) + 30) * 1000, secondsAfterWindow: 30 });
+  // an authorized, different manifest for the epoch sent as a version 1 transaction is a rival, not a transaction to skip
+  const w3 = world();
+  const chain3 = await ready(w3);
+  const m3 = w3.manifestOf(BigInt(7));
+  const s3 = w3.sign(m3);
+  w3.solanaAnchor(m3, s3, "sigMine", endOf(7) + 40);
+  const rival = w3.manifestOf(BigInt(7), "rival");
+  w3.solanaAnchor(rival, w3.sign(rival), "sigRivalV1", endOf(7) + 60, null, { version: 1 });
+  assert.match(reasonOf(await checkDataAnchor(w3.post, netFor(w3), chain3, w3.streamId, m3, s3, "sigMine", NOW)), /equivocation/);
+});
+
+test("a transaction of a version this check does not name leaves the key unread: unavailable with the node's sentence, never a pass", async () => {
+  const w = world();
+  const chain = await ready(w);
+  const m = w.manifestOf(BigInt(5));
+  const s = w.sign(m);
+  w.solanaAnchor(m, s, "sigA", endOf(5) + 50);
+  w.solanaDust(BigInt(5), "dustV2", 2);
+  const r = await checkDataAnchor(w.post, netFor(w), chain, w.streamId, m, s, "sigA", NOW);
+  assert.equal(r.state === "unavailable" && r.cause, "unreachable");
+  assert.match(r.state === "unavailable" ? r.reason : "", /Transaction version \(2\) is not supported/);
 });
 
 test("an earlier copy of the same manifest signed by another authorized key is the anchor's position", async () => {

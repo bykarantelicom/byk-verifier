@@ -33,8 +33,11 @@ function fakeSource(histories: Record<string, SignatureInfo[]>, retrievable = (s
       }
       return out;
     },
-    async getTransaction(signature: string) {
+    async getTransaction(signature: string, options: { maxSupportedTransactionVersion: number }) {
       calls.push(`tx ${signature}`);
+      /* a name that carries "v1-" is a version 1 transaction: a node does not serve it to a request that names an older
+       * version (JSON-RPC -32015, which the client throws) */
+      if (signature.includes("v1-") && options.maxSupportedTransactionVersion < 1) throw new Error('failed to get transaction: Transaction version (1) is not supported by the requesting client. Please try the request again with the following configuration parameter: "maxSupportedTransactionVersion": 1');
       return retrievable(signature) ? ({ meta: { err: null }, transaction: { message: { staticAccountKeys: [], compiledInstructions: [] } }, signature } as unknown as TransactionLike) : null;
     },
   };
@@ -71,6 +74,21 @@ test("cache proof: an endpoint that lists the until signature itself ends the wa
   assert.equal(p.inadmissible, 150);
   assert.deepEqual(p.newest, ["spam-0", "seed"]);
   assert.ok(!src.calls.includes("tx anchor-original"), "the anchor older than the stored signature was never judged");
+});
+
+test("cache proof: a version 1 transaction under a cached key is fetched and judged like any other, as the checkpoint's record and after it", async () => {
+  /* key 0: a stranger's version 1 transaction arrived after the checkpoint. Key 1: the checkpoint's own record is one (the
+   * newest transaction of a key is recorded whoever sent it), and another transaction followed. */
+  const src = fakeSource({ [addressOf(0)]: [tx("v1-dust", 40), tx("a0", 10)], [addressOf(1)]: [tx("spam-new", 60), tx("v1-newest", 50), tx("a1", 20)] });
+  const p = await proveCachedSequences(src, STREAM, ["a0", "v1-newest", "seed"], BigInt(2), { judge });
+  assert.equal(p.proven, true, p.reason ?? "");
+  assert.deepEqual({ changed: p.changed, inadmissible: p.inadmissible }, { changed: 2, inadmissible: 2 });
+  assert.deepEqual(p.newest, ["v1-dust", "spam-new", "seed"]);
+  assert.deepEqual(src.calls, ["list 1", "tx a0", "list 100 until", "tx v1-dust", "list 1", "tx v1-newest", "list 100 until", "tx spam-new"]);
+  /* an anchor sent as a version 1 transaction is a new admissible anchor like any other: the proof breaks, it is not skipped */
+  const rival = await proveCachedSequences(fakeSource({ [addressOf(0)]: [tx("anchor-v1-rival", 40), tx("a0", 10)] }), STREAM, ["a0", "seed"], BigInt(1), { judge });
+  assert.equal(rival.proven, false);
+  assert.match(rival.reason ?? "", /new admissible anchor .*anchor-v1-rival/);
 });
 
 test("cache proof: a new admissible anchor under a cached key breaks the proof at that sequence", async () => {

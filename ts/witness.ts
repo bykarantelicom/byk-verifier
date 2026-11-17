@@ -6,6 +6,15 @@ import { keccak256 } from "./crypto";
 import { GENESIS_FIXED_LEN, MANIFEST_LEN, MAX_GOV_N, parseGenesisCore, parseManifest, WITNESS_KIND, type WitnessKind, witnessKey } from "./stream";
 
 export const SPL_MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
+/* The newest Solana transaction version a reader asks a node for (getTransaction, maxSupportedTransactionVersion).
+ * A node does not serve a transaction newer than the version the request names: it answers JSON-RPC -32015. A
+ * witness key is an address anyone can send a transaction to, so a reader that names 0 cannot enumerate a key that
+ * one version 1 transaction touched (SIMD-0385, on mainnet since 15 Sep 2026), and Section 12.7 has no verdict
+ * without the enumeration. Section 12.6 is judged on the account keys the message itself carries and on its own
+ * instructions, which a version 1 answer lists the way a legacy one does, so such a transaction is admissible or
+ * not by the same rule. A version above this one still ends the read with the node's sentence, never a skipped
+ * transaction: raise the number only with a reader that is known to read that version's answer. */
+export const SOLANA_MAX_TRANSACTION_VERSION = 1;
 
 export const EAS_DATA_SCHEMA = "uint64 sequence,bytes32 commitment,bytes manifest,bytes signature";
 export const EAS_AL_SCHEMA = "uint64 logSeq,bytes32 entryHash,bytes entry,bytes governanceSignatures";
